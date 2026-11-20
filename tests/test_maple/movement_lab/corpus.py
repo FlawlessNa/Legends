@@ -77,7 +77,7 @@ POINT_SPACING = 4
 class _StubTeleportSkill(Skill):
     """
     A `Skill` whose key bind does not go through the gitignored keybindings config -
-    same shape as `tests/test_botting/test_telecast.py`'s `_StubSkill`.
+    same shape as `tests/test_botting/test_edge_departure_pre_stop.py`'s `_StubSkill`.
     """
 
     name: str = ""

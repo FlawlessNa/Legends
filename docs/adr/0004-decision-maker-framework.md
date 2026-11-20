@@ -21,6 +21,8 @@ The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers
 
 ## Decision
 
+_2026-11: telecast removed, the server has none; see #631._
+
 ### The Supervisor owns every decision loop
 
 One `Supervisor` per Bot (`botting/core/supervisor.py`) runs every DecisionMaker's decision loops, old-style and new-style alike.

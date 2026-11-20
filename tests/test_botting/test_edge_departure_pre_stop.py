@@ -55,7 +55,7 @@ def jump_key(monkeypatch: pytest.MonkeyPatch) -> None:
 @dataclass(frozen=True)
 class _StubSkill(Skill):
     """A `Skill` whose key bind does not go through the keybindings config -
-    mirrors `test_telecast.py`'s `_StubSkill`."""
+    mirrors `test_cast_window.py`'s `_StubSkill`."""
 
     name: str = ""
     cast_time: float = field(default=0.0, repr=False)

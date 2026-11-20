@@ -117,13 +117,11 @@ from .providers import CHAT_KEYS, CHAT_LINES, FRAME, HANDLE
 from .rebuffs import SoloRebuff
 from .rotation import Rotation
 from .state_snapshot import StateSnapshot
-from .telecast_mobs_hitting import TelecastMobsHitting
 from .trial_runner import TrialRunner
 
 TRAINING: tuple[type[DecisionMaker], ...] = (
     Rotation,
     MobsHitting,
-    TelecastMobsHitting,
 )
 """The DecisionMakers whose Actions in flight a reply cancels: the character
 stops training to type. A Discord `WRITE` cancels the same (`maple_parser`)."""
@@ -131,7 +129,6 @@ stops training to type. A Discord `WRITE` cancels the same (`maple_parser`)."""
 GM_STOPS: tuple[type[DecisionMaker], ...] = (
     Rotation,
     MobsHitting,
-    TelecastMobsHitting,
     CheckMobsStillSpawn,
     CheckStillInMap,
     SoloRebuff,

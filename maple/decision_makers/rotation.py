@@ -149,8 +149,6 @@ class Rotation(DecisionMaker):
 
     def _request(self) -> ActionRequest:
         # TODO - Could switch to requeue=False while ensuring that the gate is left.
-        # This is because Telecasting will move the character, and the next action should
-        # be based on the new position.
         return ActionRequest(
             f"{self}",
             controller.compile_and_send,

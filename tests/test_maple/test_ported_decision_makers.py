@@ -18,14 +18,12 @@ from maple.decision_makers import (
     SoloRebuff,
     SpeedPill,
     StateSnapshot,
-    TelecastMobsHitting,
     TrialRunner,
 )
 
 PORTED = (
     CheckStillInMap,
     MobsHitting,
-    TelecastMobsHitting,
     SoloRebuff,
     PetFood,
     SpeedPill,

@@ -219,7 +219,6 @@ class InventoryManager(
         else:
             self._disable_decision_makers(
                 "MobsHitting",
-                "TelecastMobsHitting",
                 "PartyRebuff",
                 "SoloRebuff",
                 "PetFood",
@@ -323,7 +322,6 @@ class InventoryManager(
         self.data.next_target = _virtual_position(self.data)
         self._enable_decision_makers(
             "MobsHitting",
-            "TelecastMobsHitting",
             "PartyRebuff",
             "SoloRebuff",
             "PetFood",

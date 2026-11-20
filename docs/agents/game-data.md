@@ -118,6 +118,10 @@ with Catalogue.latest() as cat:           # or Catalogue.open(build_id, root=...
     cat.item_icons()                       # tuple[ItemIcon, ...], by item
     cat.meso_frames()                      # tuple[MesoFrame, ...]
     cat.damage_digits()                    # tuple[DamageDigit, ...]
+    cat.weapon("Sword")                    # WeaponData; or cat.weapon(1302000)
+    cat.swings("swordOL", 0)               # tuple[Swing, ...]: a bracket's boxes
+    cat.weapon_icons()                     # tuple[WeaponIcon, ...], by weapon
+    cat.action_delays("swingO1")           # list[int]: [300, 150, 350]
 ```
 
 `latest` and `open` take the store root (`root=`, `data/game_data` by
@@ -141,6 +145,16 @@ name matches whole, case aside, and a map's also matches as
 `action_duration` raises it for an action the character doesn't have, or one
 none of whose frames has a delay (`prone`, `sit`, `dead`), and
 `skill_duration` for a skill that plays no action, as passive skills don't.
+
+`weapon` looks a weapon up by name or ID as `skill` does, and raises
+`LookupError` the same way; a weapon the strings don't name has `name` None,
+so only its ID finds it. `swings(afterimage, bracket)` raises it for a swing
+set or a bracket the client doesn't have. `action_delays(action)` gives an
+action's frame delays in order, as the client gives them: a negative delay
+keeps its sign, and a frame with no delay is left out. It raises `LookupError`
+for an action the character doesn't have. The boxes come as the client stores
+them (facing left, no mirroring), and `weapon_icons` has no lookup by weapon:
+it returns every icon.
 
 **A catalogue is rebuilt when it's out of date.** Opening an extraction whose
 manifest has another `catalogue_schema_version`, or which has no catalogue,
@@ -504,8 +518,8 @@ If one ever does, extraction stops rather than store something ambiguous.
 ### `catalogue.sqlite`
 
 The typed layer: one row per map, foothold, rope, portal, spawn and layer
-item, mob and mob frame, skill and skill level, character action frame, item
-icon, meso frame and damage digit, read from `raw.sqlite` and nothing else. Code reads it through
+item, mob and mob frame, skill and skill level, character action frame, weapon,
+swing, weapon icon, item icon, meso frame and damage digit, read from `raw.sqlite` and nothing else. Code reads it through
 `Catalogue` ("Looking things up"); anyone may query it directly with any
 SQLite tool. Its tables and columns are stable within a schema version, the
 `catalogue_schema_version` in the manifest (and the file's `user_version`).
@@ -524,7 +538,9 @@ and `String/Skill.img` for `strings`; each `Map/Map/Map<n>/<id>.img`, and the
 `mob_frames` (Classic keeps them in `Packs/Mob_00000.ms`); each job's
 `Skill/<job>.img` for `skills` and `skill_levels` (`Skill/Attacktype.img`,
 `Skill/ItemSkill.img` and `Skill/MobSkill/` aren't read); and the body,
-`Character/00002000.img`, for `actions`; each `Item/<category>/<prefix>.img`
+`Character/00002000.img`, for `actions`; each `Character/Weapon/<id>.img` for
+`weapons` and `weapon_icons`, named by `String/Eqp.img`, and each
+`Character/Afterimage/<set>.img` for `swings`; each `Item/<category>/<prefix>.img`
 for `item_icons`, `Item/Special/0900.img` for `meso_frames`, and
 `Effect/BasicEff.img` for `damage_digits`. A client without one of these leaves its tables empty. One that is
 there but isn't as expected stops the build, naming the image and the node,
@@ -788,6 +804,52 @@ Some actions borrow other actions' poses, and give some frames a negative
 delay (`alert3`, `magic1`...). `duration` adds each delay's magnitude, so it's
 how long the action is shown. What the sign means isn't known here, and
 `delay` keeps it as the client gives it.
+
+#### `weapons`
+
+One row per `Character/Weapon/<id>.img` that has an `info`, so the cash items
+that are only art aren't here. A weapon is named by `String/Eqp.img`'s
+`<world>/Weapon/<id>/name`, which isn't in `strings`.
+
+| column         | type    | what                                                                      |
+| -------------- | ------- | ------------------------------------------------------------------------- |
+| `id`           | INTEGER | the weapon's ID, such as `1302000`                                        |
+| `name`         | TEXT    | NULL when `String/Eqp.img` doesn't name it                                |
+| `afterimage`   | TEXT    | `info/afterImage`, its swing set such as `swordOL`; NULL when it has none |
+| `attack_speed` | INTEGER | `info/attackSpeed`; NULL when it has none                                 |
+| `attack`       | INTEGER | `info/attack`, its attack family: 1 a one-handed weapon or a dagger, 2 a spear or polearm, 3 a bow, 4 a crossbow, 5 a two-handed weapon, 6 a wand or staff, 7 a claw, 8 bare hands; NULL when it has none |
+
+#### `swings`
+
+One row per `Character/Afterimage/<set>.img/<bracket>/<action>` that has an
+`lt` and an `rb`: the box the action's swing hits, as the client stores it,
+**facing left** and relative to the character's feet. A bracket is a number, 0
+to 10 (bare hands go to 16). The `charge` child of a bracket, and a set's
+children that aren't numbered brackets, aren't here; nor are `blank.img` and
+`hit.img`, which hold no boxes. `docs/research/weapon-reach.md` says what the
+brackets are and which actions a weapon draws.
+
+| column       | type    | what                                         |
+| ------------ | ------- | -------------------------------------------- |
+| `afterimage` | TEXT    | the set, such as `swordOL`                   |
+| `bracket`    | INTEGER | 0 to 10 (0 to 16 for `barehands`)            |
+| `action`     | TEXT    | the action, such as `swingO1`                |
+| `lt_x`       | INTEGER | `lt` and `rb`: the box, relative to the feet |
+| `lt_y`       | INTEGER |                                              |
+| `rb_x`       | INTEGER |                                              |
+| `rb_y`       | INTEGER |                                              |
+
+#### `weapon_icons`
+
+One row per weapon with an `info/icon`: what the equipment window shows in the
+weapon slot.
+
+| column     | type    | what                                                          |
+| ---------- | ------- | ------------------------------------------------------------- |
+| `weapon`   | INTEGER | the weapon's ID                                               |
+| `image`    | TEXT    | its icon in `images/`; NULL when its pixels couldn't be found |
+| `origin_x` | INTEGER | the icon's origin, as an item icon's                          |
+| `origin_y` | INTEGER |                                                               |
 
 #### `item_icons`
 

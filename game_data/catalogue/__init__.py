@@ -11,7 +11,9 @@ can be rebuilt wherever the store is. The public API:
   character action and a skill's first action take; `maps_spawning` lists
   the maps a mob is on; `search` lists what matches some text; `physics`
   gives `Map/Physics.img`; and `item_icons`, `meso_frames` and
-  `damage_digits` give the sprites drawn over mobs (`catalogue`). Each
+  `damage_digits` give the sprites drawn over mobs; `weapon`, `swings`,
+  `weapon_icons` and `action_delays` give weapons, their swings' hit boxes,
+  their icons and an action's frame delays (`catalogue`). Each
   returns frozen dataclasses (`model`).
 - `build_catalogue`: the catalogue hook `extract` calls (`build`).
 - `SCHEMA_VERSION` and the tables (`schema`). `docs/agents/game-data.md`
@@ -22,7 +24,8 @@ can be rebuilt wherever the store is. The public API:
 How maps are read is `maps`, and the footholds and ropes drawn on objects and
 tiles, ported from the v83 module, are `geometry`. Mobs are read in `mobs`,
 skills and the character's actions in `skills`, and item icons, mesos and
-damage digits in `occluders`.
+damage digits in `occluders`, and weapons, swings and weapon icons in
+`weapons`.
 """
 
 from .build import build, build_catalogue
@@ -47,6 +50,9 @@ from .model import (
     SkillData,
     SkillLevel,
     Spawn,
+    Swing,
+    WeaponData,
+    WeaponIcon,
 )
 from .schema import CATALOGUE, SCHEMA_VERSION
 from .trees import CatalogueError
@@ -75,6 +81,9 @@ __all__ = [
     "SkillData",
     "SkillLevel",
     "Spawn",
+    "Swing",
+    "WeaponData",
+    "WeaponIcon",
     "build",
     "build_catalogue",
 ]

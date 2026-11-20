@@ -2,7 +2,7 @@
 Curated Goldens: `docs/planning/movement-invariant-catalogue.md` -> **Golden**,
 `CONTEXT.md`. One case per reachable movement type (via its fixture map), plus a
 narrow landing, the two rope grabs and a fall off a rope's bottom, a truncated plan,
-a Continuation pair, a Preemption at a mid-jump Step, and a telecast. The plans are
+a Continuation pair, and a Preemption at a mid-jump Step. The plans are
 in virtual px, planned on each Fixture map's `FootholdGraph` (#396).
 
 A Golden's cost is in reviewing it, so this covers a curated few - the Invariants in
@@ -26,20 +26,15 @@ import contextlib
 import importlib
 import random
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
-from functools import lru_cache
 from pathlib import Path
 
 import pytest
 
 import botting.controller as controller_package
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
-from botting.models_abstractions import Skill
-from maple.actions.movements_v2 import telecast
 from maple.model.mechanics import movement_mechanics_v2
 from tests.test_maple.movement_lab import corpus
 from tests.test_maple.movement_lab.test_invariants import (
-    _TELEPORT_SKILL,
     ACTION_DURATION,
     DIRECTIONS,
     _post_cancel_held,
@@ -124,27 +119,6 @@ def _deterministic() -> Iterator[None]:
 # `random` module, so without this every jittered Step's delay would differ on every
 # run and no golden could ever match twice.
 SEED = 20260914
-
-
-@dataclass(frozen=True)
-class _UltimateSkillStub(Skill):
-    """A `Skill` whose key bind does not go through the gitignored keybindings
-    config - same shape as `test_invariants._StubTeleportSkill`."""
-
-    name: str = ""
-    cast_time: float = field(default=0.0, repr=False)
-    key: str = field(default="f1", repr=False)
-
-    @property
-    def animation_time(self) -> float:
-        return self.cast_time
-
-    @lru_cache  # noqa: B019
-    def key_bind(self, ign: str) -> str:
-        return self.key
-
-
-_ULTIMATE_SKILL = _UltimateSkillStub("Genesis", cast_time=1.2)
 
 
 def render_golden(wrapper: KeyboardInputWrapper) -> str:
@@ -261,20 +235,11 @@ def _case_preemption_mid_jump() -> str:
     )
 
 
-def _case_telecast() -> str:
-    map_name = "teleport_shaft"
-    record = _record(map_name, (96.0, -110.0), (268.0, -110.0))
-    compiled = _seeded_compile(record, map_name)
-    fused = telecast(compiled, corpus.LAB_IGN, _TELEPORT_SKILL, _ULTIMATE_SKILL)
-    return render_golden(fused)
-
-
 CASES: dict[str, Callable[[], str]] = {
     **{name: (lambda n=name: _case_movement_type(n)) for name in _MOVEMENT_TYPE_CASES},
     "truncated_plan": _case_truncated_plan,
     "continuation_pair": _case_continuation_pair,
     "preemption_mid_jump": _case_preemption_mid_jump,
-    "telecast": _case_telecast,
 }
 
 

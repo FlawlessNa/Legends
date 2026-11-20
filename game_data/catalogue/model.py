@@ -442,3 +442,56 @@ class DamageDigit:
     image: str | None
     origin_x: int
     origin_y: int
+
+
+@dataclass(frozen=True, slots=True)
+class WeaponData:
+    """
+    A weapon, `Character/Weapon/<id>.img`'s `info`.
+
+    :ivar name: From `String/Eqp.img`; `None` when the strings don't name it.
+    :ivar afterimage: The swing set it plays, such as `swordOL`; `None` when it
+        has none.
+    :ivar attack_speed: `attackSpeed`.
+    :ivar attack: Its attack family: 1 a one-handed weapon or a dagger, 2 a
+        spear or polearm, 3 a bow, 4 a crossbow, 5 a two-handed weapon, 6 a
+        wand or staff, 7 a claw, 8 bare hands.
+    """
+
+    id: int
+    name: str | None
+    afterimage: str | None
+    attack_speed: int | None
+    attack: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class Swing:
+    """
+    One action's hit box in a swing set's bracket, as the client stores it:
+    `lt` to `rb`, relative to the character, facing left.
+    """
+
+    afterimage: str
+    bracket: int
+    action: str
+    lt_x: int
+    lt_y: int
+    rb_x: int
+    rb_y: int
+
+
+@dataclass(frozen=True, slots=True)
+class WeaponIcon:
+    """
+    A weapon's `info/icon`, which the equipment window shows.
+
+    :ivar weapon: The weapon's ID.
+    :ivar image: Its image in the image store; `None` when its pixels couldn't
+        be found.
+    """
+
+    weapon: int
+    image: str | None
+    origin_x: int
+    origin_y: int
