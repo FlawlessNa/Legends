@@ -17,7 +17,6 @@ import pytest
 from botting.core import BotData, Providers, StartupRefused
 from game_data.catalogue import Ref, SkillData, SkillLevel
 from maple.bots import CalibrationBot, TrainingBot
-from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.decision_makers.providers import SKILLS, SkillsProvider
 from maple.decision_makers.providers import skills as skills_module
 from maple.decision_makers.rebuffs import solo_buffs
@@ -31,7 +30,6 @@ from maple.model.characters import (
     character_class,
 )
 from maple.model.characters.maple_skills import NoCastTime
-from tests.test_maple.serving import serve
 
 #: `alert2`, the pose most buffs play, in ms.
 ALERT2 = 600
@@ -362,32 +360,3 @@ def test_a_buff_that_is_not_a_lasting_skill_refuses_the_start(
 
     with pytest.raises(StartupRefused, match=refusal):
         solo_buffs(found, [buff])
-
-
-# --- MobsHitting, until a skill's reach replaces its screen ranges (#638) ------
-
-
-@pytest.mark.parametrize(
-    ("training_skill", "refusal"),
-    [
-        (None, "casts the profile's training_skill: name one"),
-        ("Rage", "'Rage' isn't one of the character's skills"),
-        ("Power Strike", "Power Strike declares no screen range"),
-    ],
-    ids=["none", "not-keyed", "from-the-client"],
-)
-def test_mobs_hitting_refuses_a_training_skill_it_cannot_count_mobs_for(
-    monkeypatch: pytest.MonkeyPatch, training_skill: str | None, refusal: str
-) -> None:
-    found = skills(monkeypatch, "Swordsman", SWORDSMAN)
-    served = serve(monkeypatch, skills=found, chat=object())
-    hitting = MobsHitting(
-        {},  # pyright: ignore[reportArgumentType] - no Manager needed
-        served.data,
-        None,  # pyright: ignore[reportArgumentType] - nothing is sent
-        mob_count_threshold=1,
-        training_skill=training_skill,
-    )
-
-    with pytest.raises(StartupRefused, match=refusal):
-        hitting.setup()

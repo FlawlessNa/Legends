@@ -22,7 +22,7 @@ from maple.decision_makers.providers import (
     Facing,
 )
 from maple.decision_makers.providers import attacks as attacks_module
-from maple.model.characters.reach import Reach, Sides
+from maple.model.characters.reach import Reach, Sides, armed
 from tests.test_maple.serving import Served, serve
 from tests.test_maple.test_reach import (
     BOW,
@@ -113,6 +113,23 @@ def test_a_weapon_based_skills_cast_time_is_the_weapons(
     found = attacks(monkeypatch, attacks=SWORDSMAN)
 
     assert [a.skill.animation_time for a in found] == [0.699, 0.699]
+
+
+def test_a_weapon_based_attack_carries_its_swings_and_a_skill_based_one_none(
+    monkeypatch: pytest.MonkeyPatch, equipment: Equipment
+) -> None:
+    """`MobsHitting` reports a mob in a swing and out of the reach (#638)."""
+    power_strike, savage_blow = attacks(
+        monkeypatch,
+        attacks=[
+            {"skill": "Power Strike", "min_mobs": 1},
+            {"skill": "Savage Blow", "min_mobs": 1},
+        ],
+    )
+
+    assert power_strike.swings == armed(POWER_STRIKE, SWORD, CATALOGUE).swings
+    assert power_strike.swings
+    assert savage_blow.swings is None
 
 
 def test_skill_based_attacks_carry_their_box_and_sides(

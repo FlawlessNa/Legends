@@ -144,18 +144,18 @@ def family_actions(weapon: WeaponData) -> tuple[str, ...]:
     return actions
 
 
-def weapon_reach(
+def weapon_swings(
     weapon: WeaponData, swings: Callable[[str, int], Sequence[Swing]]
-) -> Reach:
+) -> tuple[Reach, ...]:
     """
-    The overlap of the boxes of the weapon family's actions, in each of
-    `BRACKETS` of the weapon's swing set.
+    The boxes of the weapon family's actions, in each of `BRACKETS` of the
+    weapon's swing set: every box a weapon-based cast may play.
 
     :param swings: A swing set's swings in a bracket, as `Catalogue.swings`
         gives them.
     :raises NoReach: The family has no actions here (`family_actions`); the
-        weapon has no swing set; the set lacks a bracket or one of the
-        family's actions; or the boxes share no pixel.
+        weapon has no swing set; or the set lacks a bracket or one of the
+        family's actions.
     """
     actions = family_actions(weapon)
     if weapon.afterimage is None:
@@ -176,9 +176,26 @@ def weapon_reach(
             Reach(s.lt_x, s.lt_y, s.rb_x, s.rb_y)
             for s in (found[action] for action in actions)
         ]
-    reach = overlap(boxes)
+    return tuple(boxes)
+
+
+def weapon_reach(
+    weapon: WeaponData, swings: Callable[[str, int], Sequence[Swing]]
+) -> Reach:
+    """
+    The overlap of the boxes of the weapon family's actions, in each of
+    `BRACKETS` of the weapon's swing set (`weapon_swings`).
+
+    :param swings: A swing set's swings in a bracket, as `Catalogue.swings`
+        gives them.
+    :raises NoReach: As `weapon_swings` does; or the boxes share no pixel.
+    """
+    reach = overlap(weapon_swings(weapon, swings))
     if reach is None:
-        raise NoReach(f"{_weapon(weapon)}'s swings {', '.join(actions)} share no pixel")
+        raise NoReach(
+            f"{_weapon(weapon)}'s swings {', '.join(family_actions(weapon))} share "
+            "no pixel"
+        )
     return reach
 
 
@@ -239,10 +256,14 @@ class Armed:
     :ivar skill: The skill, with its cast time: the weapon's, when it plays the
         weapon's actions.
     :ivar reach: What a cast reaches, facing left.
+    :ivar swings: The boxes of the weapon's swings, facing left, when `reach`
+        is their overlap: a mob in one of them and out of `reach` may be hit,
+        and isn't counted (`combat.partial_reach`). None otherwise.
     """
 
     skill: MapleSkill
     reach: Reach
+    swings: tuple[Reach, ...] | None = None
 
 
 def armed(
@@ -271,15 +292,17 @@ def armed(
             f"{skill.name} ({skill.id}) plays the weapon's actions, and the weapon "
             "isn't known"
         )
+    swings: tuple[Reach, ...] | None = None
     try:
         if reach is None:
+            swings = weapon_swings(weapon, catalogue.swings)
             reach = weapon_reach(weapon, catalogue.swings)
         cast_time = weapon_cast_time(weapon, catalogue.action_delays)
     except NoReach as error:
         raise NoReach(
             f"{skill.name} ({skill.id}) plays the weapon's actions: {error}"
         ) from error
-    return Armed(replace(skill, cast_time=cast_time / 1000), reach)
+    return Armed(replace(skill, cast_time=cast_time / 1000), reach, swings)
 
 
 def _weapon(weapon: WeaponData) -> str:

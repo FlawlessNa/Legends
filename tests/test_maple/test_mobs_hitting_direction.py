@@ -1,143 +1,97 @@
 """
-Regression tests for the unidirectional training-skill path (issue #51).
+Which way a cast of `MobsHitting` faces (#638, spec #631 § 6, "Facing"), as
+pure functions of `attack_choice`: no `MobsHitting`, no detection.
 
-`MobsHitting._decide` used to reach for `(x, y)` - two names that were never
-bound - the first time a unidirectional skill passed the mob threshold, so the
-branch could only ever raise `NameError`, right after a `breakpoint()` froze the
-bot. The facing is now derived from the character's on-screen bounding box.
-
-Everything here is pure geometry: the detection call is stubbed, so no game
-client and no `MobsHitting` instance are involved. The geometry is
-`mob_detection`'s functions, which were `MobsHittingMixin`'s methods.
+The facing used to point at the mob closest to the box's centre, whatever the
+skill reached (#51). It is now chosen among the sides where the attack fires:
+`closest` by the horizontal distance from the feet to a counted mob's box
+centre, `most` by how many mobs a side counts.
 """
 
-import logging
-from collections.abc import Sequence
-from typing import Any
+from maple.decision_makers.attack_choice import Placement, choose, counted, overlaps
+from maple.decision_makers.providers import Attack, Facing
+from maple.model.characters.reach import Reach
 
-import numpy as np
-import pytest
-
-from botting.core import Key
-from maple.decision_makers import mobs_hitting
-from maple.decision_makers.mob_detection import box_center, get_closest_mob_direction
-from maple.decision_makers.mobs_hitting import MobsHitting
-from maple.decision_makers.providers import HANDLE, MOBS
-
-# A character standing at x = 100, y = 55 on screen: x1, y1, x2, y2.
-CHARACTER_BOX = (90, 40, 110, 70)
-
-# Mob rectangles, in the x1, y1, x2, y2 shape `get_onscreen_mobs` returns.
-MOB_FAR_LEFT = (0, 40, 20, 70)
-MOB_NEAR_LEFT = (60, 40, 80, 70)
-MOB_NEAR_RIGHT = (130, 40, 150, 70)
-MOB_FAR_RIGHT = (400, 40, 420, 70)
-
-# The frame's pixels and the skill's on-screen mask. `_closest_mob_direction`
-# only forwards them to the detection call, stubbed out below, so nothing ever
-# reads their contents.
-PIXELS = np.zeros((1, 1, 3), dtype=np.uint8)
-MASK = np.zeros((1, 1), dtype=np.uint8)
+#: Feet at (100, 300), 1:1, no chat in the way.
+WHERE = Placement(feet=(100.0, 300.0), scale=(1.0, 1.0), bottom=600.0)
+#: One-sided: 10 to 90 px in front, 60 px up from the feet.
+SWING = Attack(object(), Reach(-90, -60, -10, 0), 1)  # pyright: ignore[reportArgumentType] - the skill isn't read
+#: Two-sided: 90 px each way.
+AROUND = Attack(object(), Reach(-90, -60, 90, 0), 1)  # pyright: ignore[reportArgumentType]
 
 
-class _FakeMobsHitting:
-    """
-    The slice of `MobsHitting` that `_closest_mob_direction` reaches through: the
-    two keys it reads before the detection call, which it only forwards to it.
-
-    `_closest_mob_direction` is called unbound against this, which is the point of
-    extracting it: the only thing standing between it and pure logic is the one
-    detection call stubbed out below.
-    """
-
-    def read(self, key: Key[Any]) -> object:
-        return {MOBS: (), HANDLE: 1}[key]
+def mob(center_x: int) -> tuple[int, int, int, int]:
+    """A 10 px wide mob standing on the feet's platform, centred on `center_x`."""
+    return (center_x - 5, 260, center_x + 5, 300)
 
 
-def _direction(
-    mobs: list[Sequence[int]], raises: Exception | None = None
-) -> str | None:
-    def detect(*args: object, **kwargs: object) -> list[Sequence[int]]:
-        if raises is not None:
-            raise raises
-        return mobs
+def test_a_one_sided_reach_is_counted_facing_left_and_facing_right() -> None:
+    found = counted(SWING, [mob(50), mob(30), mob(150)], WHERE)
 
-    fake = _FakeMobsHitting()
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(mobs_hitting, "get_mobs_positions_in_img", detect)
-        return _closest(fake)
+    assert found == {"left": (mob(50), mob(30)), "right": (mob(150),)}
 
 
-def _closest(fake: _FakeMobsHitting) -> str | None:
-    # `_closest_mob_direction` is nominally typed to `MobsHitting`, a DecisionMaker
-    # whose construction needs a live manager, pipe and proxy factory. Calling it
-    # unbound against the stand-in is the whole point of extracting it, so the shape
-    # rejecting the argument is the base class's, out of reach from this file.
-    return MobsHitting._closest_mob_direction(
-        fake,  # pyright: ignore[reportArgumentType]
-        CHARACTER_BOX,
-        PIXELS,
-        mask=MASK,
-    )
+def test_a_two_sided_reach_is_counted_once() -> None:
+    found = counted(AROUND, [mob(50), mob(150)], WHERE)
+
+    assert found == {None: (mob(50), mob(150))}
 
 
-# --- box_center -------------------------------------------------------------
+def test_only_a_side_that_fires_is_faced() -> None:
+    """The closest mob is right, but only the left counts 2."""
+    attack = Attack(SWING.skill, SWING.reach, 2)
+
+    choice = choose([attack], [mob(40), mob(30), mob(110)], WHERE, Facing.CLOSEST)
+
+    assert choice is not None
+    assert choice.direction == "left"
 
 
-def test_box_center_is_the_middle_of_an_x1y1x2y2_box() -> None:
-    assert box_center(CHARACTER_BOX) == (100.0, 55.0)
+def test_closest_faces_the_counted_mob_nearest_the_feet_horizontally() -> None:
+    choice = choose([SWING], [mob(40), mob(30), mob(130)], WHERE, Facing.CLOSEST)
+
+    assert choice is not None
+    assert choice.direction == "right"
+    assert choice.mobs == (mob(130),)
 
 
-# --- get_closest_mob_direction ----------------------------------------------
+def test_closest_faces_left_on_a_tie() -> None:
+    choice = choose([SWING], [mob(150), mob(50)], WHERE, Facing.CLOSEST)
+
+    assert choice is not None
+    assert choice.direction == "left"
 
 
-@pytest.mark.parametrize(
-    ("mobs", "expected"),
-    [
-        ([MOB_NEAR_LEFT], "left"),
-        ([MOB_NEAR_RIGHT], "right"),
-        ([MOB_FAR_LEFT, MOB_NEAR_RIGHT], "right"),
-        ([MOB_NEAR_LEFT, MOB_FAR_RIGHT], "left"),
-    ],
-)
-def test_direction_points_at_the_closest_mob(
-    mobs: list[Sequence[int]], expected: str
-) -> None:
-    assert get_closest_mob_direction(box_center(CHARACTER_BOX), mobs) == expected
+def test_most_faces_the_side_with_more_mobs() -> None:
+    choice = choose([SWING], [mob(40), mob(30), mob(130)], WHERE, Facing.MOST)
+
+    assert choice is not None
+    assert choice.direction == "left"
+    assert choice.mobs == (mob(40), mob(30))
 
 
-def test_direction_is_none_without_mobs() -> None:
-    assert get_closest_mob_direction(box_center(CHARACTER_BOX), []) is None
+def test_most_falls_back_to_closest_on_a_tie() -> None:
+    choice = choose([SWING], [mob(30), mob(130)], WHERE, Facing.MOST)
+
+    assert choice is not None
+    assert choice.direction == "right"
 
 
-# --- the unidirectional branch of _decide -----------------------------------
+def test_a_two_sided_attack_faces_nothing() -> None:
+    choice = choose([AROUND], [mob(30), mob(130)], WHERE, Facing.MOST)
+
+    assert choice is not None
+    assert choice.direction is None
 
 
-def test_unidirectional_branch_derives_a_facing_from_the_on_screen_box() -> None:
-    """The branch that used to raise `NameError` on `(x, y)`."""
-    assert _direction([MOB_FAR_LEFT, MOB_NEAR_RIGHT]) == "right"
-    assert _direction([MOB_NEAR_LEFT, MOB_FAR_RIGHT]) == "left"
+def test_no_attack_fires_without_a_mob_in_reach() -> None:
+    assert choose([SWING, AROUND], [mob(500)], WHERE, Facing.CLOSEST) is None
 
 
-def test_unidirectional_branch_returns_none_when_nothing_is_detected() -> None:
-    assert _direction([]) is None
+def test_a_box_overlaps_by_a_whole_pixel_on_each_axis() -> None:
+    reach = (10.0, 10.0, 20.0, 20.0)
 
-
-def test_detection_failure_logs_and_falls_back_to_no_facing(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """
-    A failed detection must not lose the cast - and must not open a debugger.
-    """
-    with caplog.at_level(logging.ERROR):
-        assert _direction([], raises=RuntimeError("detection blew up")) is None
-
-    assert any(record.levelno == logging.ERROR for record in caplog.records)
-    assert any(
-        "detection blew up" in (record.exc_text or "") for record in caplog.records
-    )
-
-
-def test_a_mob_left_of_the_character_in_x1y1x2y2_is_to_the_left() -> None:
-    # Centre 420 in x1, y1, x2, y2; read as x, y, w, h it would be 620, to the right.
-    assert get_closest_mob_direction((500, 5), [(400, 0, 440, 10)]) == "left"
+    assert overlaps((0, 0, 11, 11), reach)
+    assert not overlaps((0, 0, 10, 11), reach)
+    assert not overlaps((0, 0, 11, 10), reach)
+    assert not overlaps((0, 0, 10.5, 15), reach)  # pyright: ignore[reportArgumentType] - half a pixel

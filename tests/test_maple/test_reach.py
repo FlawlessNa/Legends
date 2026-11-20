@@ -15,6 +15,7 @@ import pytest
 from game_data.catalogue.model import Swing, WeaponData
 from maple.model.characters.maple_skills import MapleSkill
 from maple.model.characters.reach import (
+    BRACKETS,
     FAMILY_ACTIONS,
     NoReach,
     Reach,
@@ -267,3 +268,21 @@ def test_a_weapon_with_no_attack_speed_has_no_cast_time() -> None:
 
     with pytest.raises(NoReach, match="no attack speed"):
         weapon_cast_time(unknown, CATALOGUE.action_delays)
+
+
+# --- the swings, for `combat.partial_reach` (#638) -----------------------------------
+
+
+def test_a_weapon_based_reach_carries_every_swing_box_it_is_the_overlap_of() -> None:
+    found = armed(POWER_STRIKE, SWORD, CATALOGUE)
+
+    assert found.swings is not None
+    assert len(found.swings) == len(BRACKETS) * len(FAMILY_ACTIONS[1])
+    assert Reach(-102, -50, -22, -10) in found.swings  # swingO3
+    assert Reach(-90, -72, -18, -6) in found.swings  # swingO1, bracket 10
+    assert overlap(found.swings) == found.reach
+
+
+def test_a_reach_of_the_skills_own_carries_no_swings() -> None:
+    assert armed(SAVAGE_BLOW, None, None).swings is None
+    assert armed(HEAL, SWORD, CATALOGUE).swings is None

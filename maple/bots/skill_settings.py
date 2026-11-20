@@ -1,6 +1,6 @@
 """
-The profile's buff settings: `buffs`, the buffs `SoloRebuff` keeps up, by skill
-name (spec #631 § 7).
+The profile's skill settings: `buffs`, the buffs `SoloRebuff` keeps up, by skill
+name (spec #631 § 7), and the retired settings `attacks` replaced (§ 6).
 
 The launcher profile passes `settings` to the bot verbatim
 (`maple/launchers/profile.py`), so the bot is what reads them. A name is checked
@@ -33,6 +33,23 @@ def refuse_buff_lists(included_buffs: object, excluded_buffs: object) -> None:
             "up in `buffs`, by its name in the Skill Keys, such as "
             "`buffs: [Iron Body]`."
         )
+
+
+def refuse_training_skill(training_skill: object) -> None:
+    """
+    `training_skill` named the one skill `MobsHitting` cast. It casts the
+    profile's `attacks` now, an ordered list (#638, spec #631 § 6).
+
+    :raises ProfileError: `training_skill` is set.
+    """
+    if training_skill is None:
+        return
+    raise ProfileError(
+        f"`training_skill: {training_skill}` is retired (#638): `MobsHitting` "
+        "casts the profile's `attacks`, in order, each a skill and how many mobs "
+        "must be in its reach, such as "
+        f"`attacks: [{{skill: {training_skill}, min_mobs: 1}}]`."
+    )
 
 
 def buff_names(buffs: object) -> tuple[str, ...]:
