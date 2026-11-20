@@ -9,7 +9,7 @@ version has it rebuilt from its raw layer when it's opened.
 
 from typing import Final
 
-SCHEMA_VERSION: Final = 4
+SCHEMA_VERSION: Final = 5
 CATALOGUE: Final = "catalogue.sqlite"
 
 TABLES: Final = (
@@ -171,7 +171,9 @@ TABLES: Final = (
         type INTEGER,
         max_level INTEGER NOT NULL,
         actions TEXT NOT NULL,
-        icon TEXT
+        icon TEXT,
+        effect_duration INTEGER,
+        caster_move INTEGER NOT NULL
     )""",
     """CREATE TABLE skill_levels (
         skill INTEGER NOT NULL,

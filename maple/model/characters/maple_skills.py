@@ -10,10 +10,13 @@ and a Cleric's.
 
 A skill's cast time is its action's duration, as the catalogue gives it
 (`Catalogue.action_duration`), unscaled: the longest when it has several
-actions (spec § 5, first bullet). A skill with no action of its own is a
-weapon-based attack, which plays the weapon's actions: its cast time comes
-from the weapon (`maple.model.characters.reach`), and the attack `ATTACKS`
-serves carries it. Asking for it here raises `NoCastTime`.
+actions (spec § 5, first bullet). A skill that moves its caster
+(`info/casterMove`, a Teleport) plays no action: its cast time is its effect's
+duration (`SkillData.effect_duration`), and it has none when it has no effect
+(#646). Any other skill with no action of its own is a weapon-based attack,
+which plays the weapon's actions: its cast time comes from the weapon
+(`maple.model.characters.reach`), and the attack `ATTACKS` serves carries it.
+Asking for it here raises `NoCastTime`.
 """
 
 import difflib
@@ -62,7 +65,8 @@ class MapleSkill(Skill):
     :ivar icon: Its icon in the image store.
     :ivar cast_time: How long a cast takes, in seconds; None for a skill that
         plays the weapon's actions, whose cast time comes from the weapon
-        (`maple.model.characters.reach.armed`).
+        (`maple.model.characters.reach.armed`), and for a skill that moves its
+        caster with no effect to time it.
     """
 
     name: str
@@ -260,8 +264,9 @@ def _skill(
 
 def _cast_time(catalogue: SkillCatalogue, name: str, data: SkillData) -> float | None:
     """
-    The longest of the skill's own actions, in seconds, unscaled; None for a
-    skill with none (a weapon-based attack).
+    The longest of the skill's own actions, in seconds, unscaled. With none:
+    its effect's duration for a skill that moves its caster, or None when it
+    has no effect; and None for any other skill (a weapon-based attack).
     """
     durations: list[int] = []
     for action in data.actions:
@@ -272,7 +277,11 @@ def _cast_time(catalogue: SkillCatalogue, name: str, data: SkillData) -> float |
                 f"{name} ({data.id}) plays {action!r}, whose duration the game "
                 f"data doesn't give: {error}"
             ) from error
-    return max(durations) / 1000 if durations else None
+    if durations:
+        return max(durations) / 1000
+    if data.caster_move and data.effect_duration is not None:
+        return data.effect_duration / 1000
+    return None
 
 
 def _corner(x: int | None, y: int | None) -> tuple[int, int] | None:

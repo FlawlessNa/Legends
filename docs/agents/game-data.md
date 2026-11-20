@@ -760,6 +760,16 @@ leads to. Whether the hitboxes line up with the game is to be checked by eye
 | `max_level`   | INTEGER | how many levels it has in `skill_levels`                                 |
 | `actions`     | TEXT    | the character actions it plays, a JSON array such as `["swingO1"]`       |
 | `icon`        | TEXT    | its `icon` in `images/`; NULL when it has none                           |
+| `effect_duration` | INTEGER | its `effect/<n>` frames' delays added up, by magnitude, in ms; NULL when it has no effect or no delay |
+| `caster_move` | INTEGER | `info/casterMove`: 1 when a cast moves the character, as a Teleport does, else 0 |
+
+No Teleport plays an action. In build `756a6f605a752cec`, the Fire/Poison and
+GM Teleports (2101001, 8001002) have an effect of four 80 ms frames, 320 ms in
+all, which is their cast time (#646). The Ice/Lightning and Cleric Teleports
+(2201001, 2301000) have no effect and no other timing anywhere in the client,
+so they have no cast time, and Paths walk for a character whose Teleport is one
+of them. Attack skills have effects too (Power Strike's is 300 ms), but their
+cast time comes from the weapon.
 
 #### `skill_levels`
 

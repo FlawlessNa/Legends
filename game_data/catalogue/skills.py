@@ -14,7 +14,10 @@ skills:
   only the common fields. A field both in `common` and in a level is an error:
   which one wins isn't known.
 - `action`: the character actions it plays, `action/<i>` or a single string.
-- `info/type` and `icon`.
+- `effect/<i>/`: the frames of the effect it shows on the character, each
+  with a `delay` in milliseconds. A Teleport plays no action, and its effect
+  is the only timing it has.
+- `info/type`, `info/casterMove` and `icon`.
 
 Images not named by a job, such as `Skill/Attacktype.img`, hold no player
 skills and aren't read; nor is `Skill/MobSkill/`.
@@ -102,6 +105,8 @@ def read_skills(
                     len(levels),
                     json.dumps(_actions(skill)),
                     None if icon is None else icon.resolved().canvas_image(),
+                    _effect_duration(skill),
+                    int(info is not None and bool(info.optional_integer("casterMove"))),
                 )
             )
             rows.skill_levels += [
@@ -118,6 +123,22 @@ def _actions(skill: Tree) -> list[str]:
     if found.type == "string":
         return [found.str_value()]
     return [action.str_value() for _, action in found.expect("property").children()]
+
+
+def _effect_duration(skill: Tree) -> int | None:
+    """Its effect's frames' delays added up, each by its magnitude; None when
+    it has no effect, or no frame of it has a delay."""
+    effect = skill.get("effect")
+    if effect is None:
+        return None
+    delays: list[int] = []
+    for key, frame in effect.resolved().expect("property").children():
+        if not key.isdigit():
+            continue
+        delay = frame.resolved().expect("canvas", "property").optional_integer("delay")
+        if delay is not None:
+            delays.append(abs(delay))
+    return sum(delays) if delays else None
 
 
 def _levels(skill: Tree) -> list[tuple[int, dict[str, Tree]]]:

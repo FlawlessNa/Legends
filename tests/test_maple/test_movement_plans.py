@@ -676,9 +676,9 @@ def test_a_teleport_with_no_cast_time_is_planned_as_no_teleport(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """
-    No Teleport of the client's has an action of its own, so it has no cast
-    time (#635), and a plan that cast it couldn't be compiled: Paths walk, and
-    the setup says so once.
+    No Teleport of the client's has an action of its own, and the Cleric's has
+    no effect to time it either (#646), so it has no cast time, and a plan that
+    cast it couldn't be compiled: Paths walk, and the setup says so once.
     """
     teleport = MapleSkill("Teleport", id=2301000, level=20, max_level=20)
 
