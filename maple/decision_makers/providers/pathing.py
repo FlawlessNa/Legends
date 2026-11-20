@@ -120,11 +120,9 @@ class PathingProvider(Provider):
         self._graphs: dict[bool, FootholdGraphs] = {}
         #: When the frame the current Path was planned from was captured.
         self._path_read_at: float | None = None
-        #: The character's teleport skill, when Paths may cast it. Set by `setup()`.
-        self._own_teleport: MapleSkill | None = None
 
     def setup(self) -> None:
-        self._own_teleport = self._character_teleport()
+        self._warn_of_a_teleport_with_no_cast_time()
         self.register(ACTION_DURATION, lambda: self._duration)
         self.register(MOVEMENT_HANDLER, self._new_handler)
         handler = self.read(MOVEMENT_HANDLER)
@@ -323,33 +321,33 @@ class PathingProvider(Provider):
 
     def _profile_teleport(self) -> MapleSkill | None:
         """
-        The character's teleport skill, as `setup()` found it (`_character_teleport`).
-        """
-        return self._own_teleport
-
-    def _character_teleport(self) -> MapleSkill | None:
-        """
         `SKILLS`' `Teleport`; `None` when the character has none, the profile's
         `disable_teleport` takes it away, or its cast time isn't known.
 
         No Teleport of the client's has an action of its own, so the catalogue
         gives it no cast time, and a Movement Plan that cast it couldn't be
-        compiled. Paths walk instead, logged here, until its cast time comes
-        from the client's files (#646).
+        compiled. Paths walk instead, until its cast time comes from the
+        client's files (#646).
         """
         if self.disable_teleport:
             return None
         teleport = self.read(SKILLS).get("Teleport")
-        if teleport is not None and teleport.cast_time is None:
-            logger.warning(
-                "%s plans no teleport: %s (%d) has no cast time in the game data, "
-                "so Paths walk until #646 gives it one.",
-                self,
-                teleport.name,
-                teleport.id,
-            )
+        if teleport is None or teleport.cast_time is None:
             return None
         return teleport
+
+    def _warn_of_a_teleport_with_no_cast_time(self) -> None:
+        """Say once, at setup, that the character's Teleport isn't planned."""
+        teleport = self.read(SKILLS).get("Teleport")
+        if self.disable_teleport or teleport is None or teleport.cast_time is not None:
+            return
+        logger.warning(
+            "%s plans no teleport: %s (%d) has no cast time in the game data, so "
+            "Paths walk until #646 gives it one.",
+            self,
+            teleport.name,
+            teleport.id,
+        )
 
     def _plan_path(self) -> Path | None:
         """The Path from the current position to `DESTINATION`; `None` holds."""
