@@ -9,6 +9,7 @@ gravity 2000 px/s², so a jump that lands at its take-off's height flies
 2 × 555 ÷ 2000 = 0.555 s.
 """
 
+import logging
 import math
 import random
 import threading
@@ -22,6 +23,7 @@ from botting.screen import Reading
 from game_data.catalogue import Rope
 from maple.actions import movements_v2
 from maple.decision_makers.providers import MOVEMENTS, PATH, PathingProvider, actionable
+from maple.model.characters import MapleSkill
 from maple.model.mechanics import movement_mechanics_v2
 from maple.model.mechanics.movement_mechanics_v2 import (
     _MAX_TRAVEL_LENGTH,
@@ -634,6 +636,8 @@ def test_trial_batches_that_switch_teleport_build_each_settings_graph_once() -> 
 
 class _Teleport:
     name = "Teleport"
+    id = 2301000
+    cast_time = 0.6
 
 
 @pytest.mark.parametrize(
@@ -666,6 +670,37 @@ def test_a_rotation_plans_with_the_characters_teleport_unless_disabled(
         None if disable_teleport else teleport
     )
     assert skills == {"Teleport": teleport}
+
+
+def test_a_teleport_with_no_cast_time_is_planned_as_no_teleport(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    No Teleport of the client's has an action of its own, so it has no cast
+    time (#635), and a plan that cast it couldn't be compiled: Paths walk, and
+    the setup says so once.
+    """
+    teleport = MapleSkill("Teleport", id=2301000, level=20, max_level=20)
+
+    with caplog.at_level(logging.WARNING):
+        provider = _pathing(
+            "jump_gap",
+            (100.0, 0.0),
+            (0, 0),
+            status_read=False,
+            skills={"Teleport": teleport},
+        )
+        provider.data.movement_handler.graph(provider.physics())
+
+    handler: MovementHandler = provider.data.movement_handler
+    assert handler.teleport is None
+    assert handler.graphs.teleport is False
+    assert provider.compiler(None).keywords["teleport"] is None
+    warnings = [
+        r.getMessage() for r in caplog.records if "plans no teleport" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "Teleport (2301000) has no cast time" in warnings[0]
 
 
 def test_a_handler_refuses_another_maps_graphs() -> None:

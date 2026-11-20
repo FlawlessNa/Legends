@@ -75,7 +75,8 @@ class PathingProvider(Provider):
     Configured from the profile: `movements_duration` is the cap a plan is
     compiled against, and `disable_teleport` plans and compiles with no
     teleport skill. The teleport skill is `SKILLS`' `Teleport`, which nothing
-    here changes. `setup()` makes the handler, starts
+    here changes, and only when its cast time is known: a Teleport with none
+    is planned as no teleport, logged at setup. `setup()` makes the handler, starts
     building its graph, and plans the first Path. A Trial batch changes the cap,
     the precision Knobs and whether Paths may teleport with `configure`.
     """
@@ -119,8 +120,11 @@ class PathingProvider(Provider):
         self._graphs: dict[bool, FootholdGraphs] = {}
         #: When the frame the current Path was planned from was captured.
         self._path_read_at: float | None = None
+        #: The character's teleport skill, when Paths may cast it. Set by `setup()`.
+        self._own_teleport: MapleSkill | None = None
 
     def setup(self) -> None:
+        self._own_teleport = self._character_teleport()
         self.register(ACTION_DURATION, lambda: self._duration)
         self.register(MOVEMENT_HANDLER, self._new_handler)
         handler = self.read(MOVEMENT_HANDLER)
@@ -319,12 +323,33 @@ class PathingProvider(Provider):
 
     def _profile_teleport(self) -> MapleSkill | None:
         """
-        The character's teleport skill, `SKILLS`' `Teleport`; `None` when it has
-        none, or the profile's `disable_teleport` takes it away.
+        The character's teleport skill, as `setup()` found it (`_character_teleport`).
+        """
+        return self._own_teleport
+
+    def _character_teleport(self) -> MapleSkill | None:
+        """
+        `SKILLS`' `Teleport`; `None` when the character has none, the profile's
+        `disable_teleport` takes it away, or its cast time isn't known.
+
+        No Teleport of the client's has an action of its own, so the catalogue
+        gives it no cast time, and a Movement Plan that cast it couldn't be
+        compiled. Paths walk instead, logged here, until its cast time comes
+        from the client's files (#646).
         """
         if self.disable_teleport:
             return None
-        return self.read(SKILLS).get("Teleport")
+        teleport = self.read(SKILLS).get("Teleport")
+        if teleport is not None and teleport.cast_time is None:
+            logger.warning(
+                "%s plans no teleport: %s (%d) has no cast time in the game data, "
+                "so Paths walk until #646 gives it one.",
+                self,
+                teleport.name,
+                teleport.id,
+            )
+            return None
+        return teleport
 
     def _plan_path(self) -> Path | None:
         """The Path from the current position to `DESTINATION`; `None` holds."""
