@@ -227,9 +227,10 @@ done first.
 `Class Name` and `Executable` in `configs/game.ini`. The bot drives exactly one
 client.
 
-**`KeyError` on a skill name at runtime** — a skill in your profile or buff list
-isn't in your `keybindings.ini` `Skill Keys`, or is spelled differently from the
-class definition in `maple/model/characters/`.
+**The start is refused over a skill name** — a skill in your profile's `attacks`
+or `buffs` isn't in your `keybindings.ini` `Skill Keys`, or a `Skill Keys` name
+isn't a skill of your job in the client's files. The message names the closest;
+`python -m game_data search <name> --kind skill` finds the client's spelling.
 
 **Tesseract errors mentioning `tesseract_cmd`** — `TESSERACT` resolved to `None`.
 See the Tesseract step above.
