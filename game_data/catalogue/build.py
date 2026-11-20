@@ -16,6 +16,9 @@ It reads:
 - every mob image, `Mob/<id>.img`, into `mobs` and `mob_frames` (`mobs`).
 - every job's skill image, `Skill/<job>.img`, into `skills` and
   `skill_levels`, and `Character/00002000.img` into `actions` (`skills`).
+- every weapon image, `Character/Weapon/<id>.img`, into `weapons` and
+  `weapon_icons`, named by `String/Eqp.img`; and every swing set,
+  `Character/Afterimage/<set>.img`, into `swings` (`weapons`).
 - every item image, `Item/<category>/<prefix>.img`, into `item_icons`;
   `Item/Special/0900.img` into `meso_frames`; and `Effect/BasicEff.img` into
   `damage_digits` (`occluders`).
@@ -51,6 +54,14 @@ from .occluders import (
 from .schema import CATALOGUE, INDEXES, SCHEMA_VERSION, TABLES
 from .skills import ACTIONS_IMAGE, SKILL_IMAGE, read_actions, read_skills
 from .trees import CatalogueError, Tree
+from .weapons import (
+    AFTERIMAGE,
+    EQP_IMAGE,
+    WEAPON_IMAGE,
+    read_swings,
+    read_weapon_names,
+    read_weapons,
+)
 
 RAW = "raw.sqlite"
 STRING_KINDS = {
@@ -126,6 +137,21 @@ class _Raw:
                 found.append((match["category"], tree))
         return found
 
+    def swing_sets(self) -> list[tuple[str, Tree]]:
+        """Each swing set's name and tree, by name."""
+        rows = self._connection.execute(
+            "SELECT path FROM images WHERE path GLOB 'Character/Afterimage/*.img' "
+            "ORDER BY path"
+        ).fetchall()
+        found: list[tuple[str, Tree]] = []
+        for (path,) in rows:
+            match = AFTERIMAGE.fullmatch(path)
+            if match:
+                tree = self.tree(path)
+                assert tree is not None
+                found.append((match["name"], tree))
+        return found
+
     def numbered_trees(self, glob: str, pattern: re.Pattern[str]) -> dict[int, Tree]:
         """
         The trees of the images whose path `pattern` matches whole, by the
@@ -191,6 +217,12 @@ def _write(raw: _Raw, catalogue: sqlite3.Connection) -> None:
     actions = raw.tree(ACTIONS_IMAGE)
     if actions is not None:
         _insert(catalogue, "actions", read_actions(actions))
+    weapons = read_weapons(
+        raw.numbered_trees("Character/Weapon/*.img", WEAPON_IMAGE), strings.weapons
+    )
+    _insert(catalogue, "weapons", weapons.weapons)
+    _insert(catalogue, "swings", read_swings(raw.swing_sets()))
+    _insert(catalogue, "weapon_icons", weapons.weapon_icons)
     _insert(catalogue, "item_icons", read_item_icons(raw.item_trees()))
     mesos = raw.tree(MESO_IMAGE)
     if mesos is not None:
@@ -222,6 +254,7 @@ class _Strings:
     :ivar maps: Each map's name and street.
     :ivar mobs: Each mob's name.
     :ivar skills: Each skill's name and description.
+    :ivar weapons: Each weapon's name, from `String/Eqp.img`.
     """
 
     rows: list[Row] = field(default_factory=list[Row])
@@ -232,6 +265,7 @@ class _Strings:
     skills: dict[int, tuple[str | None, str | None]] = field(
         default_factory=dict[int, tuple[str | None, str | None]]
     )
+    weapons: dict[int, str | None] = field(default_factory=dict[int, str | None])
 
 
 def _strings(raw: _Raw) -> _Strings:
@@ -263,6 +297,9 @@ def _strings(raw: _Raw) -> _Strings:
                 found.mobs[string_id] = name
             elif kind == "skill":
                 found.skills[string_id] = (name, description)
+    eqp = raw.tree(EQP_IMAGE)
+    if eqp is not None:
+        found.weapons = read_weapon_names(eqp)
     return found
 
 
