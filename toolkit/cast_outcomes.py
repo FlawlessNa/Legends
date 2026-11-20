@@ -61,9 +61,7 @@ from botting.session.reading import (
 )
 from botting.telemetry_events import RECORDING_CHECKPOINT, RECORDING_STARTED
 from game_data.scenes.occluders import DAMAGE_SETS
-
-COMBAT_MOBS_HIT: Final = "combat.mobs_hit"
-COMBAT_PARTIAL_REACH: Final = "combat.partial_reach"
+from maple.telemetry_events import COMBAT_MOBS_HIT, COMBAT_PARTIAL_REACH, FeetAnchor
 
 #: Seconds after a `combat.mobs_hit` whose frames are searched. An Expectation.
 CAST_TIME: Final = 1.0
@@ -77,7 +75,7 @@ TOLERANCE: Final = 0.05
 #: pixels, so that a stray speck is not.
 MIN_OPAQUE: Final = 20
 
-_ANCHOR: Final = ("feet_x", "feet_y", "client_left", "client_top")
+_ANCHOR: Final = tuple(FeetAnchor.__annotations__)
 
 Box = tuple[int, int, int, int]
 Frame = NDArray[np.uint8]

@@ -444,10 +444,7 @@ class Catalogue:
             "SELECT duration FROM actions WHERE action = ? LIMIT 1", action
         )
         if not found:
-            names = [_str(name) for (name,) in self._all("SELECT action FROM actions")]
-            closest = difflib.get_close_matches(action, sorted(set(names)), n=CLOSEST)
-            hint = f"; the closest are: {', '.join(closest)}" if closest else ""
-            raise LookupError(f"the character has no action {action!r}{hint}")
+            raise self._no_action(action)
         duration = found[0][0]
         if duration is None:
             raise LookupError(f"none of the action {action!r}'s frames has a delay")
@@ -465,10 +462,7 @@ class Catalogue:
             "SELECT delay FROM actions WHERE action = ? ORDER BY frame", action
         )
         if not found:
-            names = [_str(name) for (name,) in self._all("SELECT action FROM actions")]
-            closest = difflib.get_close_matches(action, sorted(set(names)), n=CLOSEST)
-            hint = f"; the closest are: {', '.join(closest)}" if closest else ""
-            raise LookupError(f"the character has no action {action!r}{hint}")
+            raise self._no_action(action)
         return [_int(delay) for (delay,) in found if delay is not None]
 
     def weapon(self, name_or_id: str | int) -> WeaponData:
@@ -507,9 +501,10 @@ class Catalogue:
                 {_str(s) for (s,) in self._all("SELECT afterimage FROM swings")}
             )
             if afterimage not in sets:
-                closest = difflib.get_close_matches(afterimage, sets, n=CLOSEST)
-                hint = f"; the closest are: {', '.join(closest)}" if closest else ""
-                raise LookupError(f"no swing set is named {afterimage!r}{hint}")
+                raise LookupError(
+                    f"no swing set is named {afterimage!r}"
+                    f"{_closest_hint(afterimage, sets)}"
+                )
             brackets = sorted(
                 {
                     _int(b)
@@ -631,6 +626,15 @@ class Catalogue:
             )
         )
 
+    def _no_action(self, action: str) -> LookupError:
+        """The error for an action the character doesn't have, naming the
+        closest it does."""
+        names = {_str(name) for (name,) in self._all("SELECT action FROM actions")}
+        return LookupError(
+            f"the character has no action {action!r}"
+            f"{_closest_hint(action, sorted(names))}"
+        )
+
     def _id(self, kind: str, name_or_id: str | int) -> int:
         """The ID of the map, mob or skill (`kind`) a name or an ID names."""
         if isinstance(name_or_id, int) or name_or_id.strip().isdigit():
@@ -695,6 +699,13 @@ class Catalogue:
 
     def _all(self, sql: str, *parameters: _Value) -> list[Sequence[_Value]]:
         return self._db.execute(sql, parameters).fetchall()
+
+
+def _closest_hint(name: str, candidates: Sequence[str]) -> str:
+    """`; the closest are: ...`, the `candidates` closest to `name`; empty when
+    none is close."""
+    closest = difflib.get_close_matches(name, candidates, n=CLOSEST)
+    return f"; the closest are: {', '.join(closest)}" if closest else ""
 
 
 def _full_name(name: str | None, street: str | None) -> str | None:

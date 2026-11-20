@@ -83,14 +83,6 @@ class MapleSkill(Skill):
     actions: tuple[str, ...] = field(default=(), repr=False)
     icon: str | None = field(default=None, repr=False)
     cast_time: float | None = field(default=None, repr=False)
-    # Hand-measured screen ranges, which no file of the client's gives: always
-    # None for a skill built from the catalogue. Nothing reads them now: an
-    # attack's reach is `ATTACKS`' (#638, #639).
-    horizontal_screen_range: int | None = field(default=None, repr=False)
-    vertical_screen_range: int | None = field(default=None, repr=False)
-    vertical_up_screen_range: int | None = field(default=None, repr=False)
-    vertical_down_screen_range: int | None = field(default=None, repr=False)
-    unidirectional: bool = field(default=True, repr=False)
 
     @property
     def animation_time(self) -> float:

@@ -190,7 +190,16 @@ def weapon_reach(
         gives them.
     :raises NoReach: As `weapon_swings` does; or the boxes share no pixel.
     """
-    reach = overlap(weapon_swings(weapon, swings))
+    return _swings_overlap(weapon, weapon_swings(weapon, swings))
+
+
+def _swings_overlap(weapon: WeaponData, boxes: Iterable[Reach]) -> Reach:
+    """
+    The overlap of `boxes`, the weapon's swings (`weapon_swings`).
+
+    :raises NoReach: They share no pixel.
+    """
+    reach = overlap(boxes)
     if reach is None:
         raise NoReach(
             f"{_weapon(weapon)}'s swings {', '.join(family_actions(weapon))} share "
@@ -296,7 +305,7 @@ def armed(
     try:
         if reach is None:
             swings = weapon_swings(weapon, catalogue.swings)
-            reach = weapon_reach(weapon, catalogue.swings)
+            reach = _swings_overlap(weapon, swings)
         cast_time = weapon_cast_time(weapon, catalogue.action_delays)
     except NoReach as error:
         raise NoReach(
