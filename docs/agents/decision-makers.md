@@ -31,9 +31,9 @@ from botting.core import DecisionMaker, Key, Provider
 class MobCountProvider(Provider):
     """Produces MOB_COUNT for the whole Bot, however many DecisionMakers read it."""
 
-    def __init__(self, *args: Any, mob_count_threshold: int = 3, **settings: object) -> None:
+    def __init__(self, *args: Any, count_threshold: int = 3, **settings: object) -> None:
         super().__init__(*args, **settings)  # pure: no I/O here
-        self.mob_count_threshold = mob_count_threshold
+        self.count_threshold = count_threshold
 
     def setup(self) -> None:
         # One-time I/O first, if any, then one register per key provided.
