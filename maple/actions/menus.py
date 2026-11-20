@@ -7,6 +7,7 @@ from botting import controller
 from botting.core import ActionRequest, ActionWithValidation
 from botting.screen import Status, frame_source
 from maple.model.interface import AbilityMenu
+from maple.screen.equipment import EquipmentReader
 from maple.screen.minimap import MinimapReader, MinimapState
 
 from .priorities import ERROR_HANDLING
@@ -34,6 +35,13 @@ async def toggle_ability_menu(
     ign: str,
 ) -> None:
     await toggle_menu(handle, ign, "Ability Menu")
+
+
+async def toggle_equipment_menu(
+    handle: int,
+    ign: str,
+) -> None:
+    await toggle_menu(handle, ign, "Equipment Menu")
 
 
 async def expand_inventory(handle: int, target: tuple[int, int], **kwargs: Any) -> None:  # noqa: ANN401
@@ -156,3 +164,41 @@ def ensure_ability_menu_displayed(
     elif mode == "Async":
         # Never awaited, so this mode does nothing; no caller uses it.
         validated_action.execute_async(request)  # pyright: ignore[reportUnusedCoroutine]
+
+
+def equipment_window_shown(reader: EquipmentReader, handle: int) -> bool:
+    """Whether a fresh capture of the client shows the equipment window."""
+    return reader.find_window(frame_source().grab(handle).pixels) is not None
+
+
+def ensure_equipment_menu_displayed(
+    identifier: str,
+    handle: int,
+    ign: str,
+    pipe: multiprocessing.connection.Connection,
+    reader: EquipmentReader,
+    condition: threading.Condition,
+    timeout: float,
+    ensure_displayed: bool = True,
+    priority: int = ERROR_HANDLING,
+) -> None:
+    """
+    Presses the `Equipment Menu` key until the equipment window is shown, or,
+    with `ensure_displayed` false, until it is not.
+
+    :raises TimeoutError: It isn't, after `timeout` seconds or 10 presses.
+    """
+    request = ActionRequest(
+        identifier,
+        toggle_equipment_menu,
+        ign,
+        priority,
+        block_lower_priority=True,
+        args=(handle, ign),
+    )
+    ActionWithValidation(
+        pipe,
+        lambda: equipment_window_shown(reader, handle) == ensure_displayed,
+        condition,
+        timeout,
+    ).execute_blocking(request)

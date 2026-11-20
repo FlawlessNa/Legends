@@ -79,7 +79,9 @@ from .menus import (
     INVENTORY_SPACE_LEFT,
     JUMP_MULTIPLIER,
     SPEED_MULTIPLIER,
+    WEAPON,
     AbilityMenuProvider,
+    EquipmentMenuProvider,
     InventoryMenuProvider,
 )
 from .minimap import (
@@ -179,6 +181,7 @@ __all__ = [
     "SPEED_MULTIPLIER",
     "STATUS_BAR_READER",
     "STATUS_BAR_READING",
+    "WEAPON",
     "WORLD_MAP",
     "AbilityMenuProvider",
     "AreaPresence",
@@ -189,6 +192,7 @@ __all__ = [
     "ChatProvider",
     "ClientProvider",
     "DestinationProvider",
+    "EquipmentMenuProvider",
     "HuntingAreaProvider",
     "InventoryMenuProvider",
     "MapProvider",
