@@ -5,8 +5,7 @@ is compiled with at dispatch.
 
 `PathingProvider` serves the `MovementHandler`, the Path, the Movement Plan,
 the Action duration cap and the release flag (#442). It is built once per Bot,
-when a DecisionMaker reads one of its keys (`Rotation`, `TelecastMobsHitting`,
-`TrialRunner`), and configured from the profile: `movements_duration` is the
+when a DecisionMaker reads one of its keys (`Rotation`, `TrialRunner`), and configured from the profile: `movements_duration` is the
 cap, `disable_teleport` takes the teleport skill away.
 
 **The target.** A Path is planned to `DESTINATION`, which `DestinationProvider`
@@ -223,7 +222,7 @@ class PathingProvider(Provider):
             it (#538).
         :param lead: Lead the plan by how far the character has walked since
             the frame its Path was planned from. A DecisionMaker that compiles a
-            plan another planned (the telecast) passes False: no lead.
+            plan another planned passes False: no lead.
         """
         physics = self.physics()
         return functools.partial(

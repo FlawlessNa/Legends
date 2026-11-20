@@ -524,7 +524,7 @@ def test_escalate_suspends_the_loop_and_drops_the_keys(loop: _Loop) -> None:
 def test_escalate_pauses_for_the_user_what_it_disabled_before(loop: _Loop) -> None:
     """
     The classes the legacy disable named, as `CheckStillInMap` stops them, and
-    the telecast: until Discord `RESUME` (ADR 0004).
+    until Discord `RESUME` (ADR 0004).
     """
     _react(loop, Rung.ESCALATE)
 
@@ -533,7 +533,6 @@ def test_escalate_pauses_for_the_user_what_it_disabled_before(loop: _Loop) -> No
         "CheckStillInMap",
         "CheckMobsStillSpawn",
         "MobsHitting",
-        "TelecastMobsHitting",
     ]
 
 

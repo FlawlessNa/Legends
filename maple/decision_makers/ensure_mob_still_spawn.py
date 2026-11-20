@@ -30,7 +30,6 @@ from .providers import (
 )
 from .reactions import Reactions
 from .rotation import Rotation
-from .telecast_mobs_hitting import TelecastMobsHitting
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -59,7 +58,6 @@ class CheckMobsStillSpawn(DecisionMaker):
     steers = (DESTINATION,)
     pauses = (
         MobsHitting,
-        TelecastMobsHitting,
         Rotation,
         "maple.decision_makers.ensure_mob_still_spawn.CheckMobsStillSpawn",
         "maple.decision_makers.ensure_still_in_map.CheckStillInMap",
@@ -107,7 +105,6 @@ class CheckMobsStillSpawn(DecisionMaker):
         """
         async with self.pause(
             MobsHitting,
-            TelecastMobsHitting,
             reason=f"no mobs for {self._alert_timer} s",
         ):
             try:
@@ -161,7 +158,6 @@ class CheckMobsStillSpawn(DecisionMaker):
             CheckMobsStillSpawn,
             _check_still_in_map(),
             MobsHitting,
-            TelecastMobsHitting,
             reason="mobs did not spawn again",
         )
         self._reactions.react("advanced")

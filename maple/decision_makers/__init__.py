@@ -13,7 +13,6 @@ from .mobs_hitting import MobsHitting
 from .rebuffs import SoloRebuff
 from .rotation import Rotation
 from .state_snapshot import StateSnapshot
-from .telecast_mobs_hitting import TelecastMobsHitting
 from .trial_runner import TrialRunner
 
 # The package's public surface. Explicit because these imports exist only to
@@ -31,6 +30,5 @@ __all__ = [
     "SoloRebuff",
     "SpeedPill",
     "StateSnapshot",
-    "TelecastMobsHitting",
     "TrialRunner",
 ]
