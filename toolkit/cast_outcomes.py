@@ -19,10 +19,13 @@ and is refused.
 
 **Hit or miss.** For each ``combat.mobs_hit``, the video frames from the event
 to ``--cast-time`` seconds after it are searched, over each counted mob's box,
-for a damage number: any digit of the catalogue's ``damage_digits``, matched by
+for a damage number: any digit of the catalogue's ``damage_digits`` sets that
+deal damage to a mob (``DAMAGE_SETS``: ``NoRed`` and ``NoCri``; the other
+colours, such as the damage the character takes, don't count), matched by
 template. The search region is the box, ``MARGIN_X`` px wider each side and
 reaching ``RISE`` px above it (a number rises above the head,
-``game_data.scenes.occluders``). A mob with a number is **hit**. A cast with no
+``game_data.scenes.occluders``); both grow with ``--scale``, as the numbers
+do. A mob with a number is **hit**. A cast with no
 mob hit is a **miss**.
 
 **Skipped mobs.** Each ``combat.partial_reach`` is listed, with its attack and
@@ -57,6 +60,7 @@ from botting.session.reading import (
     telemetry_path,
 )
 from botting.telemetry_events import RECORDING_CHECKPOINT, RECORDING_STARTED
+from game_data.scenes.occluders import DAMAGE_SETS
 
 COMBAT_MOBS_HIT: Final = "combat.mobs_hit"
 COMBAT_PARTIAL_REACH: Final = "combat.partial_reach"
@@ -148,17 +152,21 @@ def has_number(
     return False
 
 
-def mob_regions(payload: Mapping[str, Any]) -> list[Box]:
-    """Where to search for each counted mob's number, in screen px."""
+def mob_regions(payload: Mapping[str, Any], scale: float = 1.0) -> list[Box]:
+    """
+    Where to search for each counted mob's number, in screen px. `scale` is
+    how much the client upscales its play area: it grows the margins.
+    """
+    margin, rise = round(MARGIN_X * scale), round(RISE * scale)
     ox = round(payload["feet_x"]) + payload["client_left"]
     oy = round(payload["feet_y"]) + payload["client_top"]
     regions: list[Box] = []
     for mob in payload["mobs"]:
         regions.append(
             (
-                ox + mob["left"] - MARGIN_X,
-                oy + mob["top"] - RISE,
-                ox + mob["right"] + MARGIN_X,
+                ox + mob["left"] - margin,
+                oy + mob["top"] - rise,
+                ox + mob["right"] + margin,
                 oy + mob["bottom"],
             )
         )
@@ -170,9 +178,10 @@ def judge(
     frames: Sequence[Frame],
     templates: Sequence[Template],
     tolerance: float,
+    scale: float = 1.0,
 ) -> Cast:
     """A `combat.mobs_hit` judged over the `frames` of its cast time."""
-    regions = mob_regions(record.payload)
+    regions = mob_regions(record.payload, scale)
     hit = sum(
         any(has_number(frame, region, templates, tolerance) for frame in frames)
         for region in regions
@@ -262,17 +271,22 @@ def video_path(session: Session, override: Path | None) -> Path:
     return path
 
 
-def catalogue_templates(scale: float) -> list[Template]:
-    """Every digit sprite of the latest catalogue, as templates."""
+def catalogue_templates(scale: float, root: Path | None = None) -> list[Template]:
+    """
+    The digit sprites of `DAMAGE_SETS` in the latest catalogue of the store at
+    `root` (the default store when None), as templates scaled by `scale`.
+    :raises ReportError: when there are none.
+    """
     from game_data.catalogue import Catalogue
     from game_data.render import Images
 
-    with Catalogue.latest() as cat:
+    with Catalogue.latest(*([] if root is None else [root])) as cat:
         images = Images(cat.store.images)
         found = [
             template(images.get(digit.image), scale)
             for digit in cat.damage_digits()
             if digit.image is not None
+            and digit.digit_set.rstrip("0123456789") in DAMAGE_SETS
         ]
     found = [t for t in found if int(np.count_nonzero(t.mask)) >= MIN_OPAQUE]
     if not found:
@@ -287,6 +301,7 @@ def report(
     *,
     cast_time: float = CAST_TIME,
     tolerance: float = TOLERANCE,
+    scale: float = 1.0,
 ) -> tuple[list[Cast], list[Skipped]]:
     """
     Every `combat.mobs_hit` judged, and every `combat.partial_reach`.
@@ -302,7 +317,7 @@ def report(
         except FrameError as exc:
             raise ReportError(str(exc)) from None
         for record, frames in zip(hits, read_frames(video, ranges), strict=True):
-            casts.append(judge(record, frames, templates, tolerance))
+            casts.append(judge(record, frames, templates, tolerance, scale))
     return casts, [skipped(r) for r in partials]
 
 
@@ -362,6 +377,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             catalogue_templates(arguments.scale),
             cast_time=arguments.cast_time,
             tolerance=arguments.tolerance,
+            scale=arguments.scale,
         )
     except (SessionError, ReportError) as exc:
         print(str(exc), file=sys.stderr)

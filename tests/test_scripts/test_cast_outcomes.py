@@ -15,6 +15,11 @@ import numpy as np
 import pytest
 
 from botting.session.reading import load_session
+from game_data.catalogue import Catalogue, build_catalogue
+from game_data.extraction import extract
+from game_data.render import Images
+from game_data.scenes.occluders import Sprites, damage
+from tests.test_game_data.test_scenes import write_scenes_client
 from toolkit import cast_outcomes as co
 
 SCREEN = (400, 300)  # width, height
@@ -25,30 +30,48 @@ FPS_PER_SECOND = 8  # frames per second of Session time
 START = datetime.datetime(2026, 11, 20, 12, 0, 0, tzinfo=datetime.UTC)
 
 
-def sprites() -> list[np.ndarray]:
-    """Ten 8x12 RGBA stand-in digits, each its own noise, fully opaque."""
-    rng = np.random.default_rng(1)
-    digits = []
-    for _ in range(10):
-        rgba = rng.integers(0, 256, (12, 8, 4), dtype=np.uint8)
-        rgba[..., 3] = 255
-        digits.append(rgba)
-    return digits
+@pytest.fixture(scope="module")
+def store(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """The scenes test's fixture client, extracted: no `data/` needed."""
+    base = tmp_path_factory.mktemp("cast_outcomes")
+    root = base / "store"
+    extract(write_scenes_client(base / "Data"), root, catalogue=build_catalogue)
+    return root
 
 
-DIGITS = sprites()
-TEMPLATES = [co.template(d) for d in DIGITS]
+@pytest.fixture(scope="module")
+def templates(store: Path) -> list[co.Template]:
+    return co.catalogue_templates(1.0, store)
 
 
-def screen_with_number(at: tuple[int, int] | None) -> np.ndarray:
-    """A plain screen, with digit 3 drawn with its top left at `at`."""
+def number_over(store: Path, head: tuple[int, int], seed: int = 0) -> np.ndarray:
+    """
+    A plain screen with a real damage number above screen pixel `head`, composed
+    as the scenes do (`occluders.damage`: the digits overlap by `DIGIT_OVERLAP`).
+    """
     width, height = SCREEN
     frame = np.full((height, width, 3), BACKGROUND, np.uint8)
-    if at is not None:
-        x, y = at
-        digit = cv2.cvtColor(DIGITS[3], cv2.COLOR_RGBA2BGR)
-        frame[y : y + 12, x : x + 8] = digit
+    with Catalogue.latest(store) as cat:
+        sprites = Sprites.read(cat)
+        overlays = damage(
+            sprites,
+            Images(cat.store.images),
+            head[0],
+            head[1],
+            np.random.default_rng(seed),
+        )
+    for overlay in overlays:
+        rgba = overlay.pixels
+        h, w = rgba.shape[:2]
+        region = frame[overlay.top : overlay.top + h, overlay.left : overlay.left + w]
+        opaque = rgba[..., 3] > 127
+        region[opaque] = rgba[..., 2::-1][opaque]
     return frame
+
+
+def blank() -> np.ndarray:
+    width, height = SCREEN
+    return np.full((height, width, 3), BACKGROUND, np.uint8)
 
 
 def mob(left: int, right: int) -> dict[str, int]:
@@ -85,26 +108,66 @@ def line(t: float, event: str, payload: dict[str, Any]) -> str:
     )
 
 
-def test_a_number_over_a_counted_mob_is_a_hit_and_none_is_a_miss() -> None:
+def test_a_number_over_a_counted_mob_is_a_hit_and_none_is_a_miss(
+    store: Path, templates: list[co.Template]
+) -> None:
     near, far = mob(-70, -50), mob(40, 60)
     record = _record(1.0, "combat.mobs_hit", mobs=[near, far])
-    # A number 10 px above the near mob's head, centred on it.
-    x, y = screen_of(-60 - 4, -40 - 10 - 12)
-    frames = [screen_with_number(None), screen_with_number((x, y))]
+    # A number 10 px above the near mob's head, which is its top middle.
+    head = screen_of(-60, -40 - 10)
+    frames = [blank(), number_over(store, head)]
 
-    cast = co.judge(record, frames, TEMPLATES, co.TOLERANCE)
+    cast = co.judge(record, frames, templates, co.TOLERANCE)
 
     assert (cast.mobs, cast.hit, cast.missed) == (2, 1, False)
 
 
-def test_a_cast_with_no_number_over_any_mob_is_a_miss() -> None:
+def test_every_number_length_over_a_mob_is_found(
+    store: Path, templates: list[co.Template]
+) -> None:
+    """Numbers of 1 to 6 digits, overlapping by `DIGIT_OVERLAP` as drawn."""
+    record = _record(1.0, "combat.mobs_hit", mobs=[mob(-70, -50)])
+    head = screen_of(-60, -40 - 5)
+
+    hits = [
+        co.judge(record, [number_over(store, head, seed)], templates, co.TOLERANCE).hit
+        for seed in range(12)
+    ]
+
+    assert hits == [1] * 12
+
+
+def test_a_cast_with_no_number_over_any_mob_is_a_miss(
+    store: Path, templates: list[co.Template]
+) -> None:
     record = _record(1.0, "combat.mobs_hit", mobs=[mob(-70, -50)])
     # A number, but over where no counted mob is.
-    frames = [screen_with_number((350, 250))]
+    frames = [number_over(store, (350, 270))]
 
-    cast = co.judge(record, frames, TEMPLATES, co.TOLERANCE)
+    cast = co.judge(record, frames, templates, co.TOLERANCE)
 
     assert (cast.mobs, cast.hit, cast.missed) == (1, 0, True)
+
+
+def test_only_the_sets_that_hit_a_mob_are_templates(
+    store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert len(co.catalogue_templates(1.0, store)) == 20
+    monkeypatch.setattr(co, "DAMAGE_SETS", ("NoViolet",))
+
+    with pytest.raises(co.ReportError, match="no damage digit"):
+        co.catalogue_templates(1.0, store)
+
+
+def test_scale_grows_the_templates_and_the_search_region(store: Path) -> None:
+    one, two = co.catalogue_templates(1.0, store), co.catalogue_templates(2.0, store)
+    assert two[0].pixels.shape[0] == 2 * one[0].pixels.shape[0]
+    payload = {**anchor(), "mobs": [mob(-70, -50)]}
+    [first] = co.mob_regions(payload)
+    [second] = co.mob_regions(payload, 2.0)
+    assert second[0] < first[0]
+    assert second[1] < first[1]
+    assert second[2] > first[2]
 
 
 def test_a_session_from_before_the_anchor_fields_is_refused() -> None:
@@ -123,15 +186,14 @@ def test_a_session_from_before_the_anchor_fields_is_refused() -> None:
 
 
 def test_the_report_over_a_video_gives_hits_misses_and_skipped_mobs(
-    tmp_path: Path,
+    tmp_path: Path, store: Path, templates: list[co.Template]
 ) -> None:
     video = tmp_path / "rec.avi"
     # 24 frames, 8 a second. A number over the mob from second 1.0 to 1.5 only.
-    hit_at = screen_of(-60 - 4, -40 - 10 - 12)
+    shown = number_over(store, screen_of(-60, -40 - 10))
     writer = cv2.VideoWriter(str(video), cv2.VideoWriter.fourcc(*"MJPG"), 8, SCREEN)
     for index in range(24):
-        shown = hit_at if 8 <= index <= 12 else None
-        writer.write(screen_with_number(shown))
+        writer.write(shown if 8 <= index <= 12 else blank())
     writer.release()
 
     events = [
@@ -173,7 +235,7 @@ def test_the_report_over_a_video_gives_hits_misses_and_skipped_mobs(
     path.write_text("\n".join(events), encoding="utf-8")
 
     casts, partials = co.report(
-        load_session(path), video, TEMPLATES, cast_time=0.75, tolerance=0.2
+        load_session(path), video, templates, cast_time=0.75, tolerance=0.2
     )
 
     assert [(c.attack, c.mobs, c.hit) for c in casts] == [
