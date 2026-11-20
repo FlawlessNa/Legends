@@ -114,9 +114,13 @@ def counted(
     The mobs in the attack's reach: once, under None, for a two-sided reach;
     facing left and facing right for a one-sided one.
     """
-    if attack.sides is Sides.TWO:
-        return {None: in_reach(attack.reach, None, mobs, where)}
-    return {side: in_reach(attack.reach, side, mobs, where) for side in SIDES}
+    return {side: in_reach(attack.reach, side, mobs, where) for side in _sides(attack)}
+
+
+def _sides(attack: Attack) -> tuple[Side | None, ...]:
+    """The sides a cast of the attack is counted on: None, with no facing, for a
+    two-sided reach; left and right for a one-sided one."""
+    return (None,) if attack.sides is Sides.TWO else SIDES
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,9 +194,8 @@ def partial(
     for attack in attacks:
         if attack.swings is None:
             continue
-        sides = SIDES if attack.sides is Sides.ONE else (None,)
         found: list[ClientBox] = []
-        for side in sides:
+        for side in _sides(attack):
             reached = set(in_reach(attack.reach, side, mobs, where))
             swung = {
                 mob
