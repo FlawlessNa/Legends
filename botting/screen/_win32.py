@@ -8,6 +8,7 @@ per-monitor DPI awareness (v2) before any of this runs.
 """
 
 import ctypes
+from collections.abc import Callable
 from ctypes import wintypes
 
 import pywintypes
@@ -119,34 +120,57 @@ def foreground_window() -> int:
     return win32gui.GetForegroundWindow()
 
 
-def request_foreground(hwnd: int) -> str | None:
+def request_foreground(hwnd: int) -> list[str]:
     """
     Ask Windows to make `hwnd` the foreground window, sending no key and no click:
     restore it if it is minimised, borrow the current foreground window's input
-    queue (the sanctioned way past the foreground lock), then `SetForegroundWindow`.
+    queue (`AttachThreadInput`: in practice it lets this thread past the
+    foreground lock, though Microsoft documents no such effect), raise it
+    (`BringWindowToTop`), then `SetForegroundWindow`.
 
-    :return: `None` when the calls went through, else why they did not. Whether
-        the window really is in front is for the caller to check
-        (`foreground_window`): Windows may accept the call and still refuse.
+    Each call is tried even when an earlier one is refused: a refused attach or
+    z-order change must not stop `SetForegroundWindow`, the call that matters.
+
+    :return: Every call Windows refused, as ``"<function> (<reason>)"``, in the order
+        tried; empty when they all went through. Whether the window really is in
+        front is for the caller to check (`foreground_window`): Windows may accept
+        every call and still leave it behind.
     """
-    try:
-        if win32gui.IsIconic(hwnd):
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-        current = win32gui.GetForegroundWindow()
-        mine = win32api.GetCurrentThreadId()
-        theirs = win32process.GetWindowThreadProcessId(current)[0] if current else mine
-        attached = theirs != mine
-        if attached:
-            win32process.AttachThreadInput(mine, theirs, True)
+    refused: list[str] = []
+
+    def attempt(call: Callable[[], object]) -> bool:
         try:
-            win32gui.BringWindowToTop(hwnd)
-            win32gui.SetForegroundWindow(hwnd)
-        finally:
-            if attached:
-                win32process.AttachThreadInput(mine, theirs, False)
-    except Win32Error as err:
-        return f"Windows refused ({err.funcname}: {err.strerror})"
-    return None
+            call()
+        except Win32Error as err:
+            refused.append(_refusal(err))
+            return False
+        return True
+
+    if win32gui.IsIconic(hwnd):
+        attempt(lambda: win32gui.ShowWindow(hwnd, win32con.SW_RESTORE))
+    current = win32gui.GetForegroundWindow()
+    mine = win32api.GetCurrentThreadId()
+    try:
+        theirs = win32process.GetWindowThreadProcessId(current)[0] if current else mine
+    except Win32Error as err:  # the foreground window closed meanwhile
+        refused.append(_refusal(err))
+        theirs = mine
+    attached = theirs != mine and attempt(
+        lambda: win32process.AttachThreadInput(mine, theirs, True)
+    )
+    try:
+        attempt(lambda: win32gui.BringWindowToTop(hwnd))
+        attempt(lambda: win32gui.SetForegroundWindow(hwnd))
+    finally:
+        if attached:
+            attempt(lambda: win32process.AttachThreadInput(mine, theirs, False))
+    return refused
+
+
+def _refusal(err: Win32Error) -> str:
+    # `SetForegroundWindow` refused by the foreground lock fails with no error code.
+    reason = err.strerror.rstrip(".") if err.winerror else "no error code"
+    return f"{err.funcname} ({reason})"
 
 
 def client_rect_on_screen(hwnd: int) -> Rect:
