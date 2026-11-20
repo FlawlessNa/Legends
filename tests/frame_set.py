@@ -3,7 +3,9 @@ The frame set: real MSCW frames kept in a private repository, and the expected
 readings committed beside the tests as `tests/frames/<tag>.json`.
 
 No pixels are committed. The frames themselves are fetched into
-`data/frames/<tag>/` by `scripts/fetch_frames.py`.
+`<frames root>/<tag>/` by `scripts/fetch_frames.py`. The frames root is
+`[Frames] Root` in `configs/game_data.ini`, else `data/frames`
+(`game_data.config.frames_root`), so a worktree can read the main checkout's.
 """
 
 import json
@@ -16,9 +18,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from botting.screen import Status
+from game_data.config import FRAMES
 
 TESTS_FRAMES = Path(__file__).resolve().parent / "frames"
-FRAMES_ROOT = Path(__file__).resolve().parents[1] / "data" / "frames"
+FRAMES_ROOT = FRAMES
 CURRENT = TESTS_FRAMES / "CURRENT"
 
 

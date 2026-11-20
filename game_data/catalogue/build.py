@@ -24,14 +24,19 @@ An image the client doesn't have, such as `String/Map.img` in a client of only
 mobs, leaves its tables empty. One that is there but isn't as expected is an
 error naming the image and the node, and builds nothing.
 
-The catalogue is written beside the raw layer under a temporary name, and
-renamed over the old one when it's complete.
+The catalogue is written beside the raw layer under a temporary name, unique
+to the build, and renamed into place when it's complete, so a reader never
+opens a half-built one. It is this schema version's file (`catalogue_file`); another
+version's is left alone. When two processes build the same version at once,
+the first to finish wins and the other's copy is dropped: both built the same
+file from the same raw layer.
 """
 
 import json
 import os
 import re
 import sqlite3
+import uuid
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,7 +53,7 @@ from .occluders import (
     read_item_icons,
     read_meso_frames,
 )
-from .schema import CATALOGUE, INDEXES, SCHEMA_VERSION, TABLES
+from .schema import INDEXES, SCHEMA_VERSION, TABLES, catalogue_file
 from .skills import ACTIONS_IMAGE, SKILL_IMAGE, read_actions, read_skills
 from .trees import CatalogueError, Tree
 
@@ -72,16 +77,16 @@ def build_catalogue(extraction: Path, images: ImageStore) -> int:
 
 def build(extraction: Path) -> None:
     """
-    Builds `catalogue.sqlite` in an extraction's folder, from its raw layer.
+    Builds this schema version's catalogue (`catalogue_file`) in an extraction's
+    folder, from its raw layer.
 
     :raises CatalogueError: The raw layer isn't as expected.
     """
     raw_path = extraction / RAW
     if not raw_path.is_file():
         raise CatalogueError(f"{extraction} has no {RAW} to build a catalogue from")
-    target = extraction / CATALOGUE
-    temporary = extraction / f"{CATALOGUE}.{os.getpid()}.tmp"
-    temporary.unlink(missing_ok=True)
+    target = extraction / catalogue_file(SCHEMA_VERSION)
+    temporary = extraction / f".{target.name}.{uuid.uuid4().hex}.tmp"
     try:
         with (
             closing(
@@ -90,10 +95,22 @@ def build(extraction: Path) -> None:
             closing(sqlite3.connect(temporary)) as catalogue,
         ):
             _write(_Raw(raw), catalogue)
-        os.replace(temporary, target)
-    except BaseException:
+        _move_into_place(temporary, target)
+    finally:
         temporary.unlink(missing_ok=True)
-        raise
+
+
+def _move_into_place(temporary: Path, target: Path) -> None:
+    """
+    Renames `temporary` over `target`. On Windows that fails while a reader
+    has `target` open; if it is there, another build of the same version got
+    there first, and its file is kept.
+    """
+    try:
+        os.replace(temporary, target)
+    except PermissionError:
+        if not target.is_file():
+            raise
 
 
 class _Raw:

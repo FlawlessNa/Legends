@@ -1,14 +1,21 @@
 """
-`game_data.config`: where the client path comes from, against temporary configs.
+`game_data.config`: where the client path, the store and the frames come from,
+against temporary configs.
 """
 
 import configparser
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from game_data import config
-from game_data.config import ClientPathNotSet, client_data_path
+from game_data.config import (
+    ClientPathNotSet,
+    client_data_path,
+    frames_root,
+    store_root,
+)
 
 
 @pytest.fixture
@@ -84,3 +91,76 @@ def test_the_example_sets_the_steam_default() -> None:
     parser.read(config.EXAMPLE, encoding="utf-8")
 
     assert parser.get("Client", "Data").endswith(r"MapleStory\MSCW\Data")
+
+
+# --- the store and frames roots ----------------------------------------------
+
+ROOTS = [
+    pytest.param(store_root, "Store", config.DEFAULT_STORE, id="store"),
+    pytest.param(frames_root, "Frames", config.DEFAULT_FRAMES, id="frames"),
+]
+
+type Resolve = Callable[..., Path]
+
+
+@pytest.mark.parametrize(("resolve", "section", "default"), ROOTS)
+def test_an_explicit_root_wins_over_the_config(
+    tmp_path: Path, resolve: Resolve, section: str, default: Path
+) -> None:
+    ini = _config(tmp_path, f"[{section}]\nRoot = {tmp_path / 'configured'}\n")
+
+    assert resolve(tmp_path / "given", config=ini) == tmp_path / "given"
+    assert resolve(tmp_path / "given", config=ini) != default
+
+
+@pytest.mark.parametrize(("resolve", "section", "default"), ROOTS)
+def test_the_config_gives_the_root_without_an_explicit_one(
+    tmp_path: Path, resolve: Resolve, section: str, default: Path
+) -> None:
+    ini = _config(tmp_path, f"[{section}]\nRoot = {tmp_path / 'configured'}\n")
+
+    assert resolve(config=ini) == tmp_path / "configured"
+    assert resolve(config=ini) != default
+
+
+@pytest.mark.parametrize(("resolve", "section", "default"), ROOTS)
+def test_a_relative_root_in_the_config_is_taken_from_the_repo(
+    tmp_path: Path, resolve: Resolve, section: str, default: Path
+) -> None:
+    ini = _config(tmp_path, f"[{section}]\nRoot = shared/here\n")
+
+    assert resolve(config=ini) == config.REPO / "shared" / "here"
+    assert resolve(config=ini) != default
+
+
+@pytest.mark.parametrize(("resolve", "section", "default"), ROOTS)
+@pytest.mark.parametrize(
+    "text",
+    [None, "", "[Client]\nData = x\n", "[{section}]\n", "[{section}]\nRoot =\n"],
+)
+def test_with_neither_the_root_is_the_default_under_data(
+    tmp_path: Path, resolve: Resolve, section: str, default: Path, text: str | None
+) -> None:
+    if text is None:
+        ini = tmp_path / "game_data.ini"
+    else:
+        ini = _config(tmp_path, text.format(section=section))
+
+    assert resolve(config=ini) == default
+    assert default.parent == config.REPO / "data"
+
+
+def test_the_store_root_does_not_need_the_client_path(tmp_path: Path) -> None:
+    """A config that sets only the store still resolves it; the client is separate."""
+    ini = _config(tmp_path, f"[Store]\nRoot = {tmp_path}\n")
+
+    assert store_root(config=ini) == tmp_path
+    with pytest.raises(ClientPathNotSet):
+        client_data_path(config=ini)
+
+
+def test_the_example_documents_the_store_and_frames_roots() -> None:
+    text = config.EXAMPLE.read_text(encoding="utf-8")
+
+    assert "; [Store]\n; Root = " in text
+    assert "; [Frames]\n; Root = " in text

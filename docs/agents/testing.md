@@ -72,6 +72,13 @@ a test:
   `-m client_files`. `@pytest.mark.frames` is for tests that read the real MSCW
   frame set (below). Anything needing a game window or the client's files, or
   leaving a trace outside the test process, belongs behind one of them.
+- **`client_files` and `frames` in a worktree.** A ticket worktree has no
+  `data/` of its own. Its copy of `configs/game_data.ini` points `[Store] Root`
+  and `[Frames] Root` at the main checkout's store and frames, which these
+  tests read in place (`game-data.md`, "One store for every worktree"). Never
+  copy the data in, and never run `python -m game_data extract` against the
+  shared store. A test that writes a store builds its own under `tmp_path`.
+  Glyphs stay per worktree: harvest them in it (below).
 - **The `held_movement_keys` fixture.** Constructing a `KeyboardInputWrapper` reads
   the Held-Keys Ledger, which only Main Process owns and which carries state between
   tests. Request this fixture to pin what construction sees as already held, so the
@@ -82,7 +89,9 @@ a test:
 Real MSCW frames are release assets of the private repository `legends-frames`:
 they can show other players' names, so **never commit a frame, a crop or any
 client pixel**. `python scripts/fetch_frames.py [TAG]` downloads a tag into
-`data/frames/<tag>/` (gitignored); with no tag it uses `tests/frames/CURRENT`.
+`<frames root>/<tag>/`; with no tag it uses `tests/frames/CURRENT`. The frames
+root is `[Frames] Root` in `configs/game_data.ini`, else `data/frames`
+(gitignored).
 What each frame should read as is committed in `tests/frames/<tag>.json`: per
 frame `file`, `client_size`, `notes` and `expect` (reader name to
 `{status, value}`). The default suite validates every committed file

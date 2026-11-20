@@ -12,7 +12,9 @@ An extraction's `manifest.json`: which Build it is, and how it was made.
       "failures": [{"image": "...", "node": "...", "reason": "..."}]
     }
 
-`catalogue_schema_version` is `null` until a catalogue is built. `failures`
+`catalogue_schema_version` is the schema version `extract` built a catalogue
+at, `null` if it built none. Opening a catalogue at another version builds that
+version's own file and leaves the manifest alone. `failures`
 are the canvases whose link to their pixels names nothing: the one kind of
 failure an extraction records and carries on past (`BrokenLink`).
 """
@@ -52,7 +54,8 @@ class Manifest:
     """
     :ivar build: The build id.
     :ivar extractor_version: The version of the code that wrote the raw layer.
-    :ivar catalogue_schema_version: `None` until a catalogue is built.
+    :ivar catalogue_schema_version: The version `extract` built a catalogue
+        at, `None` if it built none.
     :ivar extracted_at: When it was last extracted, in UTC. Re-extracting the
         same Build refreshes it.
     :ivar archives: Every archive and pack, by path.

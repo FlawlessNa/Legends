@@ -1,18 +1,33 @@
 """
-Where the installed client's `Data` folder is, which is set per machine.
+Where things live on this machine, read from `configs/game_data.ini`.
 
-The path comes from, in order:
+That file is gitignored, so it is set per machine, and copied into each ticket
+worktree. Copy `configs/game_data.example.ini` to create it.
+
+**The client's `Data` folder** comes from, in order:
 
 1. an explicit argument, such as the CLI's `--client`;
-2. `[Client] Data` in `configs/game_data.ini`, which is gitignored. Copy
-   `configs/game_data.example.ini` to create it.
+2. `[Client] Data` in the config file.
 
 With neither, `client_data_path` raises `ClientPathNotSet`, naming the file to
 create. There is no default, so a machine with the client somewhere else can't
 quietly read the wrong folder.
 
-`STORE` is where extractions go by default: `data/game_data`, which is
-gitignored. Every entry point takes the store root, so tests use their own.
+**The game data store** (`store_root`) and **the frames** (`frames_root`) come
+from, in order:
+
+1. an explicit argument: every entry point already takes the store root, so
+   tests use their own;
+2. `[Store] Root` or `[Frames] Root` in the config file. A relative path is
+   taken from the repo root;
+3. the default, `data/game_data` or `data/frames`, both gitignored.
+
+So every worktree can share the main checkout's store and frames in place,
+with no copy and no link. The store is shared safely across branches because
+each catalogue schema version has its own file (`game_data.catalogue`).
+
+`STORE` and `FRAMES` are the two roots as resolved when this module is first
+imported, and are the defaults of every function that takes a root.
 """
 
 import configparser
@@ -21,10 +36,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 CONFIG = REPO / "configs" / "game_data.ini"
 EXAMPLE = REPO / "configs" / "game_data.example.ini"
-STORE = REPO / "data" / "game_data"
+DEFAULT_STORE = REPO / "data" / "game_data"
+DEFAULT_FRAMES = REPO / "data" / "frames"
 
 _SECTION = "Client"
 _KEY = "Data"
+_ROOT = "Root"
 
 
 class ClientPathNotSet(Exception):
@@ -48,9 +65,7 @@ def client_data_path(explicit: Path | None = None, *, config: Path = CONFIG) -> 
             f"{config.with_name(EXAMPLE.name)}, and set [{_SECTION}] {_KEY} "
             "to the client's MSCW\\Data folder"
         )
-    parser = configparser.ConfigParser()
-    parser.read(config, encoding="utf-8")
-    value = parser.get(_SECTION, _KEY, fallback="").strip()
+    value = _read(config, _SECTION, _KEY)
     if not value:
         raise ClientPathNotSet(
             f"{config} doesn't set [{_SECTION}] {_KEY}: copy it from "
@@ -60,9 +75,45 @@ def client_data_path(explicit: Path | None = None, *, config: Path = CONFIG) -> 
     return _existing(Path(value), str(config))
 
 
+def store_root(explicit: Path | None = None, *, config: Path = CONFIG) -> Path:
+    """
+    The game data store's root: `explicit`, else `[Store] Root` in `config`,
+    else `data/game_data`. The folder needn't exist yet.
+    """
+    return _root(explicit, config, "Store", DEFAULT_STORE)
+
+
+def frames_root(explicit: Path | None = None, *, config: Path = CONFIG) -> Path:
+    """
+    Where the frame sets are fetched to: `explicit`, else `[Frames] Root` in
+    `config`, else `data/frames`. The folder needn't exist yet.
+    """
+    return _root(explicit, config, "Frames", DEFAULT_FRAMES)
+
+
+def _root(explicit: Path | None, config: Path, section: str, default: Path) -> Path:
+    if explicit is not None:
+        return explicit
+    value = _read(config, section, _ROOT) if config.is_file() else ""
+    if not value:
+        return default
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else REPO / path
+
+
+def _read(config: Path, section: str, key: str) -> str:
+    parser = configparser.ConfigParser()
+    parser.read(config, encoding="utf-8")
+    return parser.get(section, key, fallback="").strip()
+
+
 def _existing(path: Path, source: str) -> Path:
     if not path.is_dir():
         raise NotADirectoryError(
             f"the client data folder {path}, from {source}, doesn't exist"
         )
     return path
+
+
+STORE = store_root()
+FRAMES = frames_root()
