@@ -11,8 +11,9 @@ and a Cleric's.
 A skill's cast time is its action's duration, as the catalogue gives it
 (`Catalogue.action_duration`), unscaled: the longest when it has several
 actions (spec § 5, first bullet). A skill with no action of its own is a
-weapon-based attack, which plays the weapon's actions: its cast time is #637's,
-and until then, asking for it raises `NoCastTime`.
+weapon-based attack, which plays the weapon's actions: its cast time comes
+from the weapon (`maple.model.characters.reach`), and the attack `ATTACKS`
+serves carries it. Asking for it here raises `NoCastTime`.
 """
 
 import difflib
@@ -34,7 +35,8 @@ class SkillsRefused(Exception):
 
 
 class NoCastTime(RuntimeError):
-    """A cast of a skill whose cast time isn't known yet (a weapon-based attack)."""
+    """A cast of a skill whose cast time comes from the weapon, asked of the
+    skill without it: the attack `ATTACKS` serves carries it."""
 
 
 @dataclass(frozen=True)
@@ -58,8 +60,9 @@ class MapleSkill(Skill):
     :ivar actions: The character actions it plays, its own; none for a
         weapon-based attack.
     :ivar icon: Its icon in the image store.
-    :ivar cast_time: How long a cast takes, in seconds; None while it isn't
-        known (a weapon-based attack, #637).
+    :ivar cast_time: How long a cast takes, in seconds; None for a skill that
+        plays the weapon's actions, whose cast time comes from the weapon
+        (`maple.model.characters.reach.armed`).
     """
 
     name: str
@@ -91,13 +94,13 @@ class MapleSkill(Skill):
         """
         Its cast time, in seconds.
 
-        :raises NoCastTime: It isn't known yet: a weapon-based attack's comes
-            with #637.
+        :raises NoCastTime: It comes from the weapon: a weapon-based attack's
+            is the one `ATTACKS` carries.
         """
         if self.cast_time is None:
             raise NoCastTime(
-                f"{self.name} ({self.id}) plays the weapon's actions, and its cast "
-                "time isn't known yet (#637): it can't be cast"
+                f"{self.name} ({self.id}) plays the weapon's actions, so its cast "
+                "time comes from the weapon: cast it as the attack ATTACKS serves"
             )
         return self.cast_time
 
