@@ -59,6 +59,10 @@ from tests.test_maple.test_reach import (
 IGN = "Tester"
 #: 1:1: the play area is the client's own size.
 CLIENT = (800, 600)
+#: Where the client's top left is on the screen.
+CLIENT_ORIGIN = (120, 40)
+#: The feet of `CHARACTER_BOX` and the origin, as the events anchor their offsets.
+ANCHOR = {"feet_x": 400.0, "feet_y": 300.0, "client_left": 120, "client_top": 40}
 #: The character's feet at (400, 300).
 CHARACTER_BOX = (390, 200, 410, 300)
 #: Power Strike's and Slash Blast's reach on screen, facing left, at 1:1:
@@ -181,7 +185,9 @@ class _Hitting:
         values: dict[Key[Any], object] = {
             HANDLE: 7,
             FRAME: SimpleNamespace(
-                pixels=np.zeros((height, width, 3), np.uint8), client_size=client
+                pixels=np.zeros((height, width, 3), np.uint8),
+                client_size=client,
+                origin=CLIENT_ORIGIN,
             ),
             MOBS: (),
             CHAT_READER: chat,
@@ -511,6 +517,7 @@ def test_mobs_hit_names_the_attack_and_each_counted_mobs_box_from_the_feet(
             {"left": -70, "top": -50, "right": -60, "bottom": 0},
             {"left": -50, "top": -50, "right": -40, "bottom": 0},
         ],
+        **ANCHOR,
     }
 
 
@@ -530,6 +537,7 @@ def test_partial_reach_fires_for_a_mob_in_a_swing_and_out_of_the_reach(
         {
             "attack": "Slash Blast",
             "mobs": [{"left": -100, "top": -50, "right": -80, "bottom": 0}],
+            **ANCHOR,
         }
     ]
 

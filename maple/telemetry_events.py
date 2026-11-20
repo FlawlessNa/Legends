@@ -264,10 +264,26 @@ class MobOffset(TypedDict):
     bottom: int
 
 
-class MobsHitPayload(TypedDict):
+class FeetAnchor(TypedDict):
+    """
+    Where a ``MobOffset`` is measured from, on the screen, so a recording's video
+    (the whole screen, 1:1 with client px) can place it: the character's feet in
+    client px, and the client area's top left in screen px (#640). A mob's box
+    on a video frame is its offset plus ``feet_x``/``feet_y`` plus
+    ``client_left``/``client_top``.
+    """
+
+    feet_x: float
+    feet_y: float
+    client_left: int
+    client_top: int
+
+
+class MobsHitPayload(FeetAnchor):
     """
     ``combat.mobs_hit``: how many mobs, and which way the cast faces; since
-    #638, the attack cast and each counted mob's box from the feet.
+    #638, the attack cast and each counted mob's box from the feet; since #640,
+    the ``FeetAnchor`` fields.
     """
 
     mob_count: int
@@ -276,10 +292,11 @@ class MobsHitPayload(TypedDict):
     mobs: list[MobOffset]
 
 
-class PartialReachPayload(TypedDict):
+class PartialReachPayload(FeetAnchor):
     """
     ``combat.partial_reach``: the weapon-based attack, and the boxes from the
-    feet of the mobs in one of its swings and out of its reach.
+    feet of the mobs in one of its swings and out of its reach; since #640, the
+    ``FeetAnchor`` fields.
     """
 
     attack: str

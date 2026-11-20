@@ -25,6 +25,7 @@ from maple.screen.position.camera import play_area_size
 from maple.telemetry_events import (
     COMBAT_MOBS_HIT,
     COMBAT_PARTIAL_REACH,
+    FeetAnchor,
     MobOffset,
     MobsHitPayload,
     PartialReachPayload,
@@ -236,7 +237,12 @@ class MobsHitting(DecisionMaker):
             return None
         return placement(on_screen_pos, client_size, play_area, self._chat_top())
 
-    def _report_partial(self, mobs: list[ClientBox], where: Placement) -> None:
+    def _report_partial(
+        self,
+        mobs: list[ClientBox],
+        where: Placement,
+        origin: tuple[int, int],
+    ) -> None:
         """
         `combat.partial_reach`, at most once every `PARTIAL_REACH_EVERY`, when a
         mob is in one of a weapon-based attack's swings and out of its reach.
@@ -252,6 +258,7 @@ class MobsHitting(DecisionMaker):
         payload: PartialReachPayload = {
             "attack": attack.skill.name,
             "mobs": [_offset(where, mob) for mob in skipped],
+            **_anchor(where, origin),
         }
         self.emit(COMBAT_PARTIAL_REACH, payload)
 
@@ -287,11 +294,12 @@ class MobsHitting(DecisionMaker):
                         "direction": choice.direction,
                         "attack": choice.attack.skill.name,
                         "mobs": [_offset(where, mob) for mob in choice.mobs],
+                        **_anchor(where, frame.origin),
                     }
                     self.emit(COMBAT_MOBS_HIT, hit)
                     self.send(self._hit_mobs(choice.attack, choice.direction))
                     return
-                self._report_partial(mobs, where)
+                self._report_partial(mobs, where, frame.origin)
         await self.gate.leave()
 
 
@@ -299,6 +307,16 @@ def _client_box(mob: Sequence[int]) -> ClientBox:
     """A detection's `x1, y1, x2, y2` as ints: numpy's are converted here."""
     x1, y1, x2, y2 = mob
     return int(x1), int(y1), int(x2), int(y2)
+
+
+def _anchor(where: Placement, origin: tuple[int, int]) -> FeetAnchor:
+    """Where the offsets are from, on the screen (#640)."""
+    return {
+        "feet_x": round(where.feet[0], 1),
+        "feet_y": round(where.feet[1], 1),
+        "client_left": origin[0],
+        "client_top": origin[1],
+    }
 
 
 def _offset(where: Placement, mob: ClientBox) -> MobOffset:
