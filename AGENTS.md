@@ -4,12 +4,16 @@ Read this, then read **only** the doc your work needs. Guidance stays
 tool-neutral: `AGENTS.md` here and in each package is read by every agent,
 and there are no `CLAUDE.md` files (see `docs/SETUP.md`).
 
-**Two rules, everywhere:**
+**Three rules, everywhere:**
 
 - **You never merge into `dev`.** The maintainer does.
 - **Say what you could not verify.** Green tests prove Invariants, not that the
   bot works. If your change could alter which keys reach the game, or when, say
   so.
+- **Take the cleaner design when the choice is obvious.** One abstraction over
+  two near-copies, one rule over two that drift apart, even when that changes
+  behaviour slightly: name the change in the PR. Bring the maintainer only a
+  real trade-off.
 
 When you open a Lavish page, paste its full session URL
 (`http://127.0.0.1:4387/session/<id>`) in your reply. The maintainer may be
