@@ -71,15 +71,14 @@ REACH_LEFT, REACH_RIGHT, REACH_TOP, REACH_BOTTOM = 327, 378, 270, 284
 
 
 def _armed(skill: Any, min_mobs: int) -> Attack:  # noqa: ANN401 - a fixture skill
-    found = armed(skill, SWORD, CATALOGUE)
-    return Attack(found.skill, found.reach, min_mobs, found.swings)
+    return Attack(armed(skill, SWORD, CATALOGUE), min_mobs)
 
 
 SLASH_BLAST_3 = _armed(SLASH_BLAST, 3)
 POWER_STRIKE_1 = _armed(POWER_STRIKE, 1)
 SWORDSMAN = (SLASH_BLAST_3, POWER_STRIKE_1)
 #: Two-sided: Heal's box, symmetric about the feet.
-HEAL_1 = Attack(HEAL, armed(HEAL, None, None).reach, 1)
+HEAL_1 = Attack(armed(HEAL, None, None), 1)
 
 
 def left_mob(x1: int, x2: int | None = None) -> tuple[int, int, int, int]:
