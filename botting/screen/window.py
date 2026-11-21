@@ -4,7 +4,10 @@ to the front, and closing the game it belongs to.
 """
 
 import ntpath
+import os
 import time
+
+from botting.utilities.elevation import Elevation, process_elevation, window_process_id
 
 from . import _win32
 
@@ -27,6 +30,9 @@ CLOSE_TIMEOUT = 5.0
 FRONT_TIMEOUT = 1.0
 #: The exit code the closed process is given.
 CLOSED_EXIT_CODE = 1
+#: The Windows lock screen's executable, cased as `casefold` gives it: it is in
+#: front only while the session is locked.
+LOCK_SCREEN = "lockapp.exe"
 
 
 def find_window(class_name: str, executable: str) -> int:
@@ -68,22 +74,82 @@ def bring_to_front(handle: int, timeout: float = FRONT_TIMEOUT) -> str | None:
     """
     Bring the window `handle` to the front, and wait up to `timeout` seconds for
     it to be there. It sends no key and no click: it only asks Windows to change
-    the foreground window.
+    the foreground window (`_win32.request_foreground`).
 
-    :return: `None` when the window is in front, else why it is not (Windows can
-        refuse, for instance to a process it does not allow to take the focus).
+    :return: `None` when the window is in front, else why it is not and what to
+        do about it, in full sentences: which calls Windows refused, which
+        program is in front, and whether elevation, a locked session or the
+        foreground lock is in the way.
     """
-    if _win32.foreground_window() == handle:
+    in_front = _win32.foreground_window()
+    if in_front == handle:
         return None
     if not _win32.is_window(handle):
-        return f"window {handle} is gone"
-    problem = _win32.request_foreground(handle)
+        return f"Window {handle} is gone."
+    refused = _win32.request_foreground(handle)
     deadline = time.monotonic() + timeout
     while _win32.foreground_window() != handle:
         if time.monotonic() >= deadline:
-            return problem or f"Windows left window {handle} behind the foreground"
+            return _why_not_in_front(handle, in_front, refused)
         time.sleep(0.02)
     return None
+
+
+def _why_not_in_front(handle: int, in_front: int, refused: list[str]) -> str:
+    """
+    What `bring_to_front` reports when the window stayed behind `in_front`, the
+    window that was in front when it asked: what Windows said, then the most
+    specific reason it knows of, with what to do.
+    """
+    front_name = _image_name(in_front)
+    if refused:
+        said = f"Windows refused {', '.join(refused)}"
+    else:
+        said = f"Windows accepted every call but left window {handle} behind"
+    said += f" (in front: {front_name})."
+    if front_name.casefold() == LOCK_SCREEN:
+        advice = (
+            "The session is locked: the lock screen is in front, and no program "
+            "can bring a window over it. Unlock the session, then try again."
+        )
+    elif _elevation_blocks(handle):
+        advice = (
+            f"Window {handle} belongs to an elevated process and this one is not, "
+            "and Windows does not let a process bring a window of higher integrity "
+            "forward (UIPI). Run this terminal as administrator, then try again."
+        )
+    elif any(call.startswith("AttachThreadInput ") for call in refused):
+        advice = (
+            f"Windows would not let this process share the input queue of "
+            f"{front_name}, so the foreground lock held; getting past it would "
+            "take a key or a click, which this does not send. Bring the window to "
+            "the front by hand, then try again."
+        )
+    else:
+        advice = (
+            "Windows may refuse a foreground change even when it allows the calls; "
+            "getting past it would take a key or a click, which this does not "
+            "send. Bring the window to the front by hand, then try again."
+        )
+    return f"{said} {advice}"
+
+
+def _image_name(hwnd: int) -> str:
+    """The file name of the executable that owns `hwnd`, for a message."""
+    if not hwnd:
+        return "no window"
+    image = _win32.process_image_path(hwnd)
+    return ntpath.basename(image) if image else f"window {hwnd}, process unknown"
+
+
+def _elevation_blocks(handle: int) -> bool:
+    """
+    Whether this process is not elevated and `handle`'s process is, or runs at an
+    integrity this process can't even read (its token can't be opened).
+    """
+    if process_elevation(os.getpid()) is Elevation.ELEVATED:
+        return False
+    return process_elevation(window_process_id(handle)) is not Elevation.NOT_ELEVATED
 
 
 def close_client(handle: int, timeout: float = CLOSE_TIMEOUT) -> None:
