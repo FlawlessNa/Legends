@@ -1,0 +1,16 @@
+{
+  "fill": [0.3, 1.0],
+  "wander": 120,
+  "cameras": 100,
+  "drops": {
+    "pool": {"meso:9000000": 0.6, "item:4000014": 0.4},
+    "sites_per_mob": [0.0, 0.8],
+    "per_site": [1, 3],
+    "spread": 24
+  },
+  "damage": {
+    "count": [0, 3],
+    "values": [50, 350],
+    "sets": ["NoRed0", "NoCri0"]
+  }
+}

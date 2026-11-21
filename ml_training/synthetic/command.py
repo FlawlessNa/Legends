@@ -7,6 +7,16 @@ The model lands in `ml_training/data/models/production/<NAME>/`:
 `weights/best.pt`, `recipe.json` and `samples/`. The recipe holds every value
 the run used, so that `--recipe` alone generates the same dataset again. The
 weights are not reproduced: training isn't deterministic.
+
+**What a map's scenes draw** comes from `configs/synthetic/<map id>.json`
+(`CONFIGS`), because it differs by map: how full of mobs the map is, what its
+mobs drop and how much, and how hard players hit there. Its keys are
+`compose_scene`'s: `fill`, `wander`, `drops` (`Drops`: `pool`,
+`sites_per_mob`, `per_site`, `spread`), `damage` (`Damage`: `count`, `values`,
+`sets`), and optionally `visibility_floor` and `cameras`. A key left out takes
+`compose_scene`'s default, and `drops` or `damage` left out draws none. A map
+with no file is drawn with neither, with a warning naming the file to write. A `--recipe` brings its own settings and ignores
+the file.
 """
 
 import json
@@ -26,9 +36,12 @@ from game_data.catalogue import Catalogue
 from game_data.config import REPO, STORE
 from game_data.render import VIEWPORT
 from game_data.scenes import (
-    MOBS,
+    FILL,
     SCENES_VERSION,
     VISIBILITY_FLOOR,
+    WANDER,
+    Damage,
+    Drops,
     Scene,
     compose_scene,
     map_classes,
@@ -42,17 +55,23 @@ DATA: Final = Path(__file__).resolve().parent.parent / "data"
 DATASETS: Final = DATA / "datasets"
 PRODUCTION: Final = DATA / "models" / "production"
 RUNS: Final = DATA / "models" / "runs"
+CONFIGS: Final = REPO / "configs" / "synthetic"
 
 COUNT: Final = 3000
 TRAIN_SPLIT: Final = 0.85
 SAMPLES: Final = 20
 JPEG_QUALITY: Final = 95
 
-OCCLUDERS: Final = {"drops": (0, 8), "damage": (0, 4)}
-"""
-The occluders a scene draws, by kind, unless the recipe says otherwise: a
-first guess, to be judged against real screens.
-"""
+SETTINGS: Final = (
+    "client",
+    "fill",
+    "wander",
+    "visibility_floor",
+    "cameras",
+    "drops",
+    "damage",
+)
+"""The keys of a map's `configs/synthetic` file and of a recipe's `compose_scene`."""
 
 Trainer = Callable[[Path, Mapping[str, Any], str], Path]
 """Trains on a `data.yaml` with the settings, under a run name; returns `best.pt`."""
@@ -111,18 +130,19 @@ def synth(
         arguments override it.
     :param training: Overrides the `final_training` settings, a test's way to
         train one epoch.
-    :raises SynthError: Nothing says which map, or a model of that name has
-        other classes.
+    :raises SynthError: Nothing says which map, a model of that name has
+        other classes, the recipe is of another scenes version, or the
+        settings are invalid.
     :raises LookupError: As `Catalogue.map` does.
     """
     read: dict[str, Any] = (
         json.loads(recipe.read_text(encoding="utf-8")) if recipe else {}
     )
     if read and read.get("scenes_version") != SCENES_VERSION:
-        print(
-            f"warning: the recipe is of scenes version {read.get('scenes_version')}, "
-            f"this is {SCENES_VERSION}: the dataset will differ",
-            file=sys.stderr,
+        raise SynthError(
+            f"{recipe} is of scenes version {read.get('scenes_version')}, this is "
+            f"{SCENES_VERSION}: its settings don't mean the same any more; run "
+            "without --recipe, from the map's configs/synthetic file"
         )
     which = map if map is not None else read.get("map_id")
     if which is None:
@@ -136,21 +156,14 @@ def synth(
         seed = secrets.randbits(32)
         print(f"seed {seed} (drawn)")
     build = build or read.get("build")
-    given = read.get("compose_scene", {})
-    compose: dict[str, Any] = {
-        "client": tuple(given.get("client", VIEWPORT)),
-        "mobs": tuple(given.get("mobs", MOBS)),
-        "visibility_floor": given.get("visibility_floor", VISIBILITY_FLOOR),
-        "cameras": given.get("cameras"),
-        "occluders": {
-            kind: (low, high)
-            for kind, (low, high) in given.get("occluders", OCCLUDERS).items()
-        },
-    }
     settings = {**(read.get("final_training") or final_training()), **(training or {})}
 
     with Catalogue.open(build, root) if build else Catalogue.latest(root) as cat:
         found = cat.map(which)
+        if "compose_scene" in read:
+            compose = compose_settings(read["compose_scene"], str(recipe))
+        else:
+            compose = compose_settings(*map_config(found.id))
         classes = map_classes(cat, found.id)
         if not classes:
             raise SynthError(f"map {found.id} has no mob to detect")
@@ -174,15 +187,7 @@ def synth(
             "scenes_version": SCENES_VERSION,
             "seed": seed,
             "count": total,
-            "compose_scene": {
-                key: list(value) if isinstance(value, tuple) else value
-                for key, value in compose.items()
-            }
-            | {
-                "occluders": {
-                    kind: list(count) for kind, count in compose["occluders"].items()
-                }
-            },
+            "compose_scene": settings_json(compose),
             "classes": classes,
             "final_training": settings,
             "ultralytics": metadata.version("ultralytics"),
@@ -204,6 +209,100 @@ def synth(
     print("mobs for the profile's `mobs` setting:")
     print(json.dumps(classes))
     return folder
+
+
+def map_config(map_id: int) -> tuple[dict[str, Any], str]:
+    """
+    The map's settings from `configs/synthetic/<map id>.json` (`CONFIGS`),
+    and the file's path. A map with no file is drawn with neither drops nor
+    damage numbers, with a warning naming the file: what its mobs drop and how
+    hard players hit there are the map's to say.
+    """
+    path = CONFIGS / f"{map_id}.json"
+    if not path.is_file():
+        print(
+            f"warning: no {path}: the scenes have no drops and no damage numbers; "
+            "write it to say what this map's mobs drop and how hard players hit",
+            file=sys.stderr,
+        )
+        return {}, str(path)
+    return json.loads(path.read_text(encoding="utf-8")), str(path)
+
+
+def compose_settings(given: Mapping[str, Any], source: str) -> dict[str, Any]:
+    """
+    `compose_scene`'s keyword arguments from JSON settings, a key left out
+    taking its default, and `drops` or `damage` left out drawing none.
+
+    :raises SynthError: A key is unknown or a value is invalid, naming
+        `source`.
+    """
+    unknown = sorted(set(given) - set(SETTINGS))
+    if unknown:
+        raise SynthError(
+            f"{source}: no setting {unknown[0]!r}; they are {', '.join(SETTINGS)}"
+        )
+    drops, damage = given.get("drops"), given.get("damage")
+    try:
+        fill = tuple(float(share) for share in given.get("fill", FILL))
+        if len(fill) != 2 or not 0 <= fill[0] <= fill[1] <= 1:
+            raise ValueError(
+                f"fill must be (min, max) shares with 0 <= min <= max <= 1, not {fill}"
+            )
+        wander = int(given.get("wander", WANDER))
+        if wander < 0:
+            raise ValueError(f"wander can't be negative, not {wander}")
+        return {
+            "client": tuple(given.get("client", VIEWPORT)),
+            "fill": fill,
+            "wander": wander,
+            "visibility_floor": float(given.get("visibility_floor", VISIBILITY_FLOOR)),
+            "cameras": given.get("cameras"),
+            "drops": None if drops is None else _drops(drops),
+            "damage": None if damage is None else _damage(damage),
+        }
+    except (TypeError, ValueError) as error:
+        raise SynthError(f"{source}: {error}") from error
+
+
+def _drops(given: Mapping[str, Any]) -> Drops:
+    values = dict(given)
+    for key in ("sites_per_mob", "per_site"):
+        if key in values:
+            values[key] = tuple(values[key])
+    return Drops(**values)
+
+
+def _damage(given: Mapping[str, Any]) -> Damage:
+    values = dict(given)
+    for key in ("count", "values", "sets"):
+        if key in values:
+            values[key] = tuple(values[key])
+    return Damage(**values)
+
+
+def settings_json(compose: Mapping[str, Any]) -> dict[str, Any]:
+    """`compose_settings`' arguments as the JSON a recipe holds."""
+    found: dict[str, Any] = {}
+    for key, value in compose.items():
+        if isinstance(value, Drops):
+            found[key] = {
+                "pool": dict(value.pool),
+                "sites_per_mob": list(value.sites_per_mob),
+                "per_site": list(value.per_site),
+                "spread": value.spread,
+            }
+        elif isinstance(value, Damage):
+            found[key] = {
+                "count": list(value.count),
+                "values": list(value.values),
+                "sets": list(value.sets),
+            }
+        elif isinstance(value, tuple):
+            found[key] = list(value)
+        else:
+            found[key] = value
+    return found
 
 
 def _check_shared(folder: Path, classes: list[str]) -> None:

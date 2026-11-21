@@ -11,14 +11,20 @@ from pytest_mock import MockerFixture
 
 from game_data.catalogue import build_catalogue
 from game_data.extraction import extract
-from game_data.scenes import SCENES_VERSION
+from game_data.scenes import SCENES_VERSION, Damage, Drops
 from ml_training.__main__ import main
 from ml_training.synthetic import SynthError, synth
 from ml_training.synthetic import command as module
 from tests.test_game_data.test_scenes import FIELD, TWINS, write_scenes_client
 
 CLASSES = ["Bat", "Block", "Crab"]
-SMALL_CLIENT = {"client": [200, 100], "mobs": [2, 4]}
+SMALL_CLIENT = {"client": [200, 100], "fill": [0.5, 1.0]}
+FIELD_CONFIG = {
+    "fill": [1.0, 1.0],
+    "wander": 30,
+    "drops": {"pool": {"meso:9000000": 1.0}, "sites_per_mob": [1, 1]},
+    "damage": {"count": [1, 2], "values": [5, 50], "sets": ["NoRed0"]},
+}
 
 
 @pytest.fixture(scope="module")
@@ -35,7 +41,15 @@ def data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(module, "DATASETS", tmp_path / "datasets")
     monkeypatch.setattr(module, "PRODUCTION", tmp_path / "production")
     monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    monkeypatch.setattr(module, "CONFIGS", tmp_path / "configs")
     return tmp_path
+
+
+def write_config(data: Path, settings: Mapping[str, Any]) -> Path:
+    path = data / "configs" / f"{FIELD}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(settings), encoding="utf-8")
+    return path
 
 
 class Trainer:
@@ -156,36 +170,120 @@ def test_rerunning_from_the_recipe_gives_the_same_dataset(
     assert (again / "recipe.json").read_text() == (first / "recipe.json").read_text()
 
 
-@pytest.mark.parametrize(
-    ("given", "used"),
-    [
-        (None, {"drops": (0, 8), "damage": (0, 4)}),
-        ({"drops": [1, 1]}, {"drops": (1, 1)}),
-        ({}, {}),
-    ],
-)
-def test_scenes_draw_the_recipes_occluders_or_by_default_drops_and_damage(
-    store: Path,
-    data: Path,
-    mocker: MockerFixture,
-    given: dict[str, list[int]] | None,
-    used: dict[str, tuple[int, int]],
+def test_scenes_draw_the_maps_config_file(
+    store: Path, data: Path, mocker: MockerFixture
 ) -> None:
+    write_config(data, FIELD_CONFIG | {"client": [200, 100]})
     spy = mocker.spy(module, "compose_scene")
-    settings = SMALL_CLIENT if given is None else SMALL_CLIENT | {"occluders": given}
 
-    folder = synth(
+    folder = synth(FIELD, count=3, seed=1, root=store, trainer=Trainer())
+
+    expected = {
+        "client": (200, 100),
+        "fill": (1.0, 1.0),
+        "wander": 30,
+        "visibility_floor": 0.3,
+        "cameras": None,
+        "drops": Drops({"meso:9000000": 1.0}, (1, 1)),
+        "damage": Damage((1, 2), (5, 50), ("NoRed0",)),
+    }
+    assert [call.kwargs for call in spy.call_args_list] == [expected] * 3
+    recipe = json.loads((folder / "recipe.json").read_text(encoding="utf-8"))
+    assert recipe["compose_scene"]["drops"] == {
+        "pool": {"meso:9000000": 1.0},
+        "sites_per_mob": [1, 1],
+        "per_site": [1, 3],
+        "spread": 24,
+    }
+    assert recipe["compose_scene"]["damage"] == {
+        "count": [1, 2],
+        "values": [5, 50],
+        "sets": ["NoRed0"],
+    }
+
+
+def test_a_recipe_brings_its_own_settings_over_the_maps_file(
+    store: Path, data: Path, mocker: MockerFixture
+) -> None:
+    write_config(data, FIELD_CONFIG)
+    spy = mocker.spy(module, "compose_scene")
+
+    run(store, data, Trainer())
+
+    kwargs = spy.call_args_list[0].kwargs
+    assert kwargs["fill"] == (0.5, 1.0)
+    assert kwargs["drops"] is None
+    assert kwargs["damage"] is None
+
+
+def test_rerunning_a_maps_recipe_ignores_a_changed_file(
+    store: Path, data: Path
+) -> None:
+    write_config(data, FIELD_CONFIG | {"client": [200, 100]})
+    first = synth(
         FIELD,
-        recipe=write_recipe(data / "r.json", compose_scene=settings),
+        count=4,
+        seed=3,
+        name="a",
         root=store,
         trainer=Trainer(),
+        keep_dataset=True,
+    )
+    write_config(data, {"fill": [0.0, 0.0]})
+
+    synth(
+        None,
+        recipe=first / "recipe.json",
+        name="b",
+        root=store,
+        trainer=Trainer(),
+        keep_dataset=True,
     )
 
-    assert [call.kwargs["occluders"] for call in spy.call_args_list] == [used] * 6
-    recipe = json.loads((folder / "recipe.json").read_text(encoding="utf-8"))
-    assert recipe["compose_scene"]["occluders"] == {
-        kind: list(count) for kind, count in used.items()
-    }
+    assert hashes(data / "datasets" / "synth_a") == hashes(
+        data / "datasets" / "synth_b"
+    )
+
+
+def test_a_map_with_no_file_has_no_drops_nor_damage_with_a_warning(
+    store: Path, data: Path, mocker: MockerFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
+    spy = mocker.spy(module, "compose_scene")
+
+    synth(FIELD, count=1, seed=1, root=store, trainer=Trainer(), training={})
+
+    kwargs = spy.call_args_list[0].kwargs
+    assert kwargs["drops"] is None
+    assert kwargs["damage"] is None
+    assert kwargs["fill"] == (0.3, 1.0)
+    assert f"{FIELD}.json" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("settings", "message"),
+    [
+        ({"mobs": [1, 2]}, "no setting 'mobs'"),
+        ({"fill": [0.9, 0.1]}, "fill must be"),
+        ({"drops": {"pool": {}}}, "at least one drop"),
+        ({"drops": {"pool": {"meso:1": 1}, "colour": "red"}}, "colour"),
+        ({"damage": {"values": [0, 9]}}, "start at 1"),
+    ],
+)
+def test_invalid_settings_are_refused_naming_the_file(
+    store: Path, data: Path, settings: dict[str, Any], message: str
+) -> None:
+    path = write_config(data, settings)
+
+    with pytest.raises(SynthError, match=message) as raised:
+        synth(FIELD, count=1, root=store, trainer=Trainer())
+    assert str(path) in str(raised.value)
+
+
+def test_a_recipe_of_another_scenes_version_is_refused(store: Path, data: Path) -> None:
+    old = write_recipe(data / "old.json", scenes_version=SCENES_VERSION - 1)
+
+    with pytest.raises(SynthError, match="scenes version"):
+        synth(FIELD, recipe=old, root=store, trainer=Trainer())
 
 
 def test_flags_override_the_recipe(store: Path, data: Path) -> None:

@@ -2,8 +2,9 @@
 
     python toolkit/synthetic_scene.py "Damp Forest" --seed 42 --out scene.png
 
-Run it to look at what the scene generator draws for a map. Needs an
-extraction (`python -m game_data extract`); no client, and it sends no input.
+Run it to look at what the scene generator draws for a map, with the map's
+`configs/synthetic/<map id>.json`, as `synth` draws it. Needs an extraction
+(`python -m game_data extract`); no client, and it sends no input.
 """
 
 import argparse
@@ -14,6 +15,7 @@ import numpy as np
 
 from game_data.catalogue import Catalogue
 from game_data.scenes import compose_scene
+from ml_training.synthetic.command import compose_settings, map_config
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
@@ -25,13 +27,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with Catalogue.latest() as cat:
+        settings = compose_settings(*map_config(cat.map(args.map).id))
+        if args.no_occluders:
+            settings |= {"drops": None, "damage": None}
         scene = compose_scene(
-            cat,
-            args.map,
-            np.random.default_rng(args.seed),
-            occluders=None
-            if args.no_occluders
-            else {"drops": (0, 8), "damage": (0, 4)},
+            cat, args.map, np.random.default_rng(args.seed), **settings
         )
 
     img = cv2.cvtColor(scene.image, cv2.COLOR_RGB2BGR)

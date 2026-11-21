@@ -272,71 +272,96 @@ compares renders against in-game screenshots.
 import numpy as np
 
 from game_data.catalogue import Catalogue
-from game_data.scenes import compose_scene
+from game_data.scenes import Damage, Drops, compose_scene
 
 with Catalogue.latest() as cat:
     rng = np.random.default_rng(42)
-    scene = compose_scene(cat, "Henesys Hunting Ground I", rng)
+    scene = compose_scene(
+        cat,
+        "Kerning City Subway: Line 1 <Area 1>",
+        rng,
+        drops=Drops({"meso:9000000": 0.6, "item:4000014": 0.4}),
+        damage=Damage(values=(50, 350)),
+    )
     scene.image              # (768, 1366, 3) RGB
     scene.labels             # tuple[Label(cls, box, visible), ...]
 ```
 
-`compose_scene(cat, map, rng, *, client=(1366, 768), mobs=(0, 15),
-visibility_floor=0.3, cameras=None, occluders=None)` is one synthetic client
-screen of a map, with its mobs drawn on their spawns, and what the client
-draws over them, for training a detection model on. It reads the catalogue
-and the image store, never the client, and knows nothing of YOLO or
-`ml_training`. Players and the UI aren't drawn (players can be composed on
-their own: "Composing a player").
+`compose_scene(cat, map, rng, *, client=(1366, 768), fill=(0.3, 1.0),
+wander=120, visibility_floor=0.3, cameras=None, drops=None, damage=None)` is
+one synthetic client screen of a map, with its mobs drawn near their spawn
+points, and what the client draws over them, for training a detection model
+on. It reads the catalogue and the image store, never the client, and knows
+nothing of YOLO or `ml_training`. Players and the UI aren't drawn (players can
+be composed on their own: "Composing a player").
 
-- **The view.** A camera of `client`'s size. On an axis where the VR bounds
-  are at least that size, its centre is drawn uniformly in them, then clamped
-  so the view stays inside, so views flush with an edge come up more often
-  than others. On an axis where the map is smaller, it's centred and the rest
-  is black, as the client shows it. The background is `render_map` at that
-  camera, so backgrounds' parallax follows it, cropped. Every animated item is
-  at one `frame` drawn for the scene.
+`synth` (`python -m ml_training synth MAP`) takes these settings from the
+map's `configs/synthetic/<map id>.json`: `fill`, `wander`, `drops`, `damage`,
+and optionally `visibility_floor` and `cameras`, each as below. A map with no
+file is drawn with neither drops nor damage, with a warning naming the file.
+`configs/synthetic/10003061.json` is one judged by eye.
+
+- **Spots.** Each of the map's `mob` spawns has a spot (`spots`): the extent
+  of its foothold chain (`prev`/`next`, walls skipped) inside its
+  `[rx0, rx1]`. A mob, a drop or the followed character stands on a spot, at
+  the chain's height there; where the chain runs past a foothold, the height
+  is the first foothold along it that spans `x`.
+- **The mobs: a map-wide population.** A share of the spots drawn in `fill`
+  (both ends shares from 0 to 1) gets a mob each, so there are never more
+  mobs than spawn points. Each mob is within `wander` pixels of its spawn
+  point's `x`, clamped to its spot, so none hangs off a platform's edge. A
+  mob with a `fly_speed` is raised by 0 to 150 pixels, no higher than the
+  view's top. Its action is drawn among those it has of `stand`, `move`,
+  `hit1`, `die1`, its frame uniformly, and it faces either way. The mobs are
+  drawn in a random order, and the camera crops them.
+- **The view.** A camera of `client`'s size follows a character
+  (`scene_camera`): it stands at a point drawn on a spot, weighted by the
+  spot's width, and the camera's centre is `CAMERA_ABOVE_FEET` (60) pixels
+  above its feet, off by up to `CAMERA_LAG` (120, 40) as when it moves, then
+  clamped so the view stays inside the VR bounds. A map with no spot draws the
+  centre uniformly in the VR bounds instead (`draw_camera`). On an axis where
+  the map is smaller than the view, it's centred and the rest is black, as
+  the client shows it. The background is `render_map` at that camera, so
+  backgrounds' parallax follows it, cropped. Every animated item is at one
+  `frame` drawn for the scene.
 - **Render reuse.** `cameras=None` renders the map for every scene, which on a
   large map is most of a scene's time. `cameras=n` renders `n` cameras of the
   map once, the first time an `rng` composes it, and each scene then picks
   one. The views are held for as long as that `rng` is.
-- **The mobs.** Their number is drawn from `mobs`, both ends included. Each
-  comes from a spawn drawn uniformly among the map's `mob` spawns whose
-  `[rx0, rx1]` overlaps the view's columns: its species, `x` uniform in
-  `[rx0, rx1]`, and `y` its foothold's height at `x`. When the range runs past
-  that foothold, the height is the first foothold along its `prev`/`next`
-  chain that spans `x` (walls skipped). A mob with a `fly_speed` is raised by
-  0 to 150 pixels, no higher than the view's top. Its action is drawn among
-  those it has of `stand`, `move`, `hit1`, `die1`, its frame uniformly, and it
-  faces either way. The mobs are drawn in a random order.
-- **Occluders.** `occluders` maps each kind to draw to the fewest and most of
-  it per scene, both included, such as `{"drops": (0, 8), "damage": (0, 4)}`.
-  A kind left out is off, and `None`, the default, draws none. The kinds are
-  `game_data.scenes.OCCLUDERS`.
-  - `drops` lie on a spawn drawn as a mob's is, `x` uniform in its
-    `[rx0, rx1]`, on its foothold's height there. Half are mesos, at a frame
-    of their spin drawn uniformly; the rest are item icons, drawn uniformly
-    among the `Consume`, `Etc` and `Install` items (not `Cash`). An icon is
-    placed as in a 32-pixel inventory slot centred on `x`, its bottom on the
-    ground, which is where its `origin` puts it. Each drop is behind or in
-    front of the mobs at random.
-  - `damage` numbers are above a mob with a pixel in the view, drawn
-    uniformly among them: its frame's `head` (mirrored when it faces the
-    other way), or else the middle of its opaque pixels' top. A number's bottom is 0 to 60 pixels above that,
-    and it's centred there. It has 1 to 6 digits, the first never 0, from a
-    pair of digit sets of `NoRed` or `NoCri`: `<set><2k + 1>` for the first
-    digit, `<set><2k>` for the rest, each overlapping the one before by 8
-    pixels. Numbers are in front of everything.
+- **Drops** (`Drops(pool, sites_per_mob=(0, 0.8), per_site=(1, 3),
+  spread=24)`). The client holds no drop tables (drops are the server's), so
+  a map says what drops: `pool` maps `meso:<id>` and `item:<id>` to weights.
+  The meso sprites are `9000000` bronze, `9000001` gold, `9000002` a bundle,
+  `9000003` a bag; `9000004` to `9000007` are event coins. Drops lie at kill
+  sites: `sites_per_mob` times the mobs with a pixel in the view, rounded,
+  each on a spot overlapping the view, `x` uniform in its columns there, with
+  `per_site` drops fanned `spread` pixels apart (each up to `DROP_JITTER`, 3,
+  off) on its ground. A meso is at a frame of its spin drawn uniformly. Each
+  is placed as in a 32-pixel inventory slot centred on `x`, its bottom on the
+  ground, which is where its `origin` puts it, and is behind or in front of
+  the mobs at random.
+- **Damage** (`Damage(count=(0, 3), values=(1, 9999), sets=("NoRed0",
+  "NoCri0"))`). `count` numbers per scene, each above a mob with a pixel in
+  the view, drawn uniformly among them: its frame's `head` (mirrored when it
+  faces the other way), or else the middle of its opaque pixels' top. A
+  number's bottom is 0 to 60 pixels above that, and it's centred there. Its
+  value is drawn in `values`; its digits come from one of `sets`, each
+  `<stem><2k>`, whose partner `<stem><2k + 1>` draws the larger first digit.
+  Digits overlap the one before by 8 pixels. `NoRed0`/`NoRed1` (a normal hit)
+  and `NoCri0`/`NoCri1` (a critical) are the default look; the other sets are
+  skins. Numbers are in front of everything.
 
-  A kind the catalogue has no sprites for is left out, with a warning. The
-  constants (the share of mesos, the slot, the rise, the overlap) are first
-  guesses, in `game_data/scenes/occluders.py`, to be judged by eye.
+  A drop or digit set the catalogue has no sprite for raises `ValueError`
+  naming it. The layout constants (the slot, the rise, the overlap, the
+  jitter) are first guesses, in `game_data/scenes/occluders.py`, to be judged
+  by eye.
 - **Labels.** `Label(cls, box, visible)`. `box` is `(x1, y1, x2, y2)` in the
   view's pixels, `x2` and `y2` one past the last: the bounds of the drawn
   sprite's opaque pixels (alpha > 0) inside the view, not its `lt`/`rb`
   hitbox. `visible` is the share of those pixels that nothing drawn after it
-  covers: a mob, a drop in front, or a damage number. A label under `visibility_floor` is dropped; the mob stays in the
-  image. A mob with no pixel in the view has no label.
+  covers: a mob, a drop in front, or a damage number. A label under
+  `visibility_floor` is dropped; the mob stays in the image. A mob with no
+  pixel in the view has no label.
 - **Class names** are the catalogue's mob names with spaces and dots removed
   (`class_name`), the form the bot's `_is_detectable_by_model` compares. Two
   species of one class name in a map raise `SceneError`, naming both IDs. A
@@ -344,7 +369,8 @@ their own: "Composing a player").
   actions that has an image, is left out, with a warning naming it.
 - **Determinism.** Every draw comes from `rng`, in a fixed order: the same
   catalogue build, map, arguments and seed give the same pixels and labels.
-  `SCENES_VERSION` changes whenever that output would.
+  `SCENES_VERSION` changes whenever that output would, and `synth` refuses a
+  recipe of another version, whose settings no longer mean the same.
 
 `draw_mobs(view, placements, images, overlays=())` is the step that draws: it
 lays each `Placement(mob, action, frame, x, y, flip)` over an RGB view, its
