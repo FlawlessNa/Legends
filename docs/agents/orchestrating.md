@@ -241,6 +241,9 @@ interfaces that grew one parameter per ticket; nobody else looks at the whole.
   hold.
 - What is worth doing but too big or too risky for the pass goes in its PR
   body as proposals, not into the diff.
+- Each proposal whose answer is obvious (`AGENTS.md`, "Take the cleaner
+  design") becomes a ticket of the epic, run before the PR into `dev`. Bring
+  the maintainer only the proposals that are a real trade-off.
 - A pass that finds nothing is a valid outcome: the agent says so on the
   ticket, and you close it without a PR.
 
