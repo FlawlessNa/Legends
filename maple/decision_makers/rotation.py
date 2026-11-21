@@ -70,8 +70,7 @@ class Rotation(DecisionMaker):
         """
         :param kwargs: The profile's settings. `movements_duration` and
             `disable_teleport` configure `PathingProvider`, and
-            `smart_rotation_enabled` and `mob_count_threshold`
-            `DestinationProvider`: none is read here.
+            `smart_rotation_enabled` `DestinationProvider`: none is read here.
         """
         super().__init__(metadata, data, pipe)
         self._recovery = MovementRecovery(self, physics=lambda: self._pathing.physics())
@@ -149,8 +148,6 @@ class Rotation(DecisionMaker):
 
     def _request(self) -> ActionRequest:
         # TODO - Could switch to requeue=False while ensuring that the gate is left.
-        # This is because Telecasting will move the character, and the next action should
-        # be based on the new position.
         return ActionRequest(
             f"{self}",
             controller.compile_and_send,

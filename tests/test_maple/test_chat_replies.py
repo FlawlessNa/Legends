@@ -364,7 +364,6 @@ def test_a_whisper_is_answered_on_whisper_with_the_characters_keys(
     assert request.cancel_tasks == [
         f"Rotation({IGN})",
         f"MobsHitting({IGN})",
-        f"TelecastMobsHitting({IGN})",
     ]
 
 

@@ -69,14 +69,13 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 #: The DecisionMakers an Escalate stops until a human resumes: the set
 #: `CheckStillInMap` stops when it confirms the character is out of its map,
-#: the established "stop the bot and wait for a human" idiom, and the telecast.
+#: the established "stop the bot and wait for a human" idiom.
 #: Dotted paths: each of these modules imports the rotation, which holds this.
 ESCALATION_TARGETS = (
     "maple.decision_makers.rotation.Rotation",
     "maple.decision_makers.ensure_still_in_map.CheckStillInMap",
     "maple.decision_makers.ensure_mob_still_spawn.CheckMobsStillSpawn",
     "maple.decision_makers.mobs_hitting.MobsHitting",
-    "maple.decision_makers.telecast_mobs_hitting.TelecastMobsHitting",
 )
 
 

@@ -29,14 +29,15 @@ from botting.screen import Reading, capture
 from maple.decision_makers.providers import (
     AREA_PRESENCE,
     AREA_STRETCHES,
-    CAST_REACH,
+    ATTACKS,
     DESTINATION,
     FRAME,
     HUNTING_AREA,
     POSITION,
+    SKILLS,
     AreaPresence,
-    CastReach,
-    CastReachProvider,
+    Attack,
+    AttacksProvider,
     CharacterProvider,
     ClientProvider,
     DestinationProvider,
@@ -47,7 +48,10 @@ from maple.decision_makers.providers import (
     PathingProvider,
     ProfileProvider,
     ScreenReadersProvider,
+    SkillsProvider,
 )
+from maple.model.characters.maple_skills import MapleSkill
+from maple.model.characters.reach import Armed, Reach
 from maple.model.navigation import Point
 from maple.model.world import HuntingArea, Stretch, WorldMap
 from maple.screen.position import VirtualPosition
@@ -99,14 +103,18 @@ def serve(
     chat_keys: Mapping[str, str] | None = None,
     character: object = None,
     buff_names: tuple[str, ...] = (),
+    skills: Mapping[str, object] | None = None,
     **readers: object,
 ) -> Served:
     """
     `ign`'s data, with the window, the replies switch, the screen readers, the
-    character when one is given, and the client's frame and chat keys.
+    character and its skills when they are given, and the client's frame and
+    chat keys.
 
     :param frames: What the client shows, one call per capture.
-    :param character: What `CHARACTER` serves; none is served without one.
+    :param character: What `CHARACTER` serves; none is served without one,
+        or without `buff_names`, which its Provider serves too.
+    :param skills: What `SKILLS` serves; none is served without them.
     :param readers: The screen readers, by `ScreenReadersProvider`'s keywords.
     """
     client = Client(frames)
@@ -117,14 +125,39 @@ def serve(
     replies = providers.add(RepliesProvider)
     assert isinstance(replies, RepliesProvider)
     providers.add(ScreenReadersProvider, sprites=None, **readers)
-    if character is not None:
+    if character is not None or buff_names:
         providers.add(
             CharacterProvider,
             character_class=lambda *_: character,
             buff_names=buff_names,
         )
+    if skills is not None:
+        # Built as `MapleBot.child_init` builds it, from `skills` rather than
+        # the keybindings and the catalogue.
+        monkeypatch.setattr(SkillsProvider, "_skills", lambda _: dict(skills))
+        providers.add(SkillsProvider, job="Beginner")
     providers.add(ClientProvider, chat_keys=dict(chat_keys or {}))
     return Served(data, providers, client, replies, pipe)
+
+
+def serve_skills(data: BotData, skills: Mapping[str, object]) -> None:
+    """`SKILLS`, registered as `SkillsProvider` registers it, from `skills`: no
+    keybindings, no catalogue. For a Provider built on its own; a DecisionMaker
+    assembled on a Bot needs `serve(skills=...)`, which builds the Provider."""
+    data.provide(
+        SKILLS, object.__new__(SkillsProvider), lambda: skills, initial_value=skills
+    )
+
+
+#: What a fixture attack reaches: 100 px each side of the feet, 100 above and 50
+#: below.
+WIDE_REACH = Reach(-100, -100, 100, 50)
+
+
+def attack(min_mobs: int, reach: Reach = WIDE_REACH, name: str = "Fixture") -> Attack:
+    """An attack of the profile's `attacks`, with the box `reach` and no client."""
+    skill = MapleSkill(name, id=0, level=1, max_level=1)
+    return Attack(Armed(skill, reach), min_mobs)
 
 
 def destination(
@@ -139,7 +172,7 @@ def destination(
     area: HuntingArea | None = None,
     stretches: tuple[Stretch, ...] | None = None,
     presence: AreaPresence | None = None,
-    cast_reach: CastReach | None = None,
+    attacks: tuple[Attack, ...] | None = None,
     **settings: object,
 ) -> DestinationProvider:
     """
@@ -150,8 +183,8 @@ def destination(
     The window, the map and its mobs (none) are served by their Bot-level
     Providers; `POSITION` and `FRAME` are registered as `MinimapProvider` and
     `ClientProvider` register them, from `at` and `frame`, with no client.
-    The Hunting Area's keys and `CAST_REACH` are registered as their Providers
-    register them, from `area`, `stretches`, `presence` and `cast_reach`: None,
+    The Hunting Area's keys and `ATTACKS` are registered as their Providers
+    register them, from `area`, `stretches`, `presence` and `attacks`: None,
     as with a rotation other than `hunting_area`, unless given; `override`
     changes them.
     """
@@ -174,7 +207,7 @@ def destination(
     data.provide(HUNTING_AREA, area_provider, lambda: area)
     data.provide(AREA_STRETCHES, area_provider, lambda: stretches)
     data.provide(AREA_PRESENCE, area_provider, lambda: presence)
-    data.provide(CAST_REACH, object.__new__(CastReachProvider), lambda: cast_reach)
+    data.provide(ATTACKS, object.__new__(AttacksProvider), lambda: attacks)
     providers.build([DestinationProvider])
     return providers.get(DestinationProvider)
 
@@ -185,7 +218,7 @@ def pathing(
     target: Callable[[], Point] = lambda: (0.0, 0.0),
     *,
     data: BotData | None = None,
-    character: object = None,
+    skills: Mapping[str, object] | None = None,
     game_physics: Mapping[str, float] | None = None,
     handle: int = 0,
     position_threshold: float | None = None,
@@ -193,8 +226,8 @@ def pathing(
 ) -> PathingProvider:
     """
     `PathingProvider`, built and set up as assembly builds it, with the
-    profile `settings`, on a Bot whose map is `world_map`, whose character is
-    `character`, whose position is `at`'s and whose destination is `target`'s,
+    profile `settings`, on a Bot whose map is `world_map`, whose skills are
+    `skills` (none when not given), whose position is `at`'s and whose destination is `target`'s,
     with the profile's stats (`ProfileProvider`): 1, unless `settings` give
     them, and no Calibration constant.
 
@@ -212,7 +245,8 @@ def pathing(
         providers.add(
             MapProvider, map_id=0, world_map=world_map, game_physics=game_physics
         )
-    providers.add(CharacterProvider, character_class=lambda *_: character)
+    if not data.is_provided(SKILLS):
+        serve_skills(data, skills or {})
     if not data.is_provided(POSITION):
         data.provide(
             POSITION,

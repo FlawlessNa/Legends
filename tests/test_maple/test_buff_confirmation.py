@@ -5,7 +5,6 @@ before and after readings make of it, and which casts `CastCheck` asks for again
 
 import itertools
 from collections.abc import Iterator
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -209,7 +208,7 @@ def test_buffs_are_read_from_a_frame_captured_now(
         monkeypatch,
         frames=lambda: next(frames),
         buffs=reader,
-        character=SimpleNamespace(skills={}),
+        skills={},
         buff_names=(BUFF,),
     )
     assemble(served, SoloRebuff)

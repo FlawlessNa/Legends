@@ -19,6 +19,12 @@ from maple.bots.map_setting import (
     refuse_mobs,
     resolve_map_id,
 )
+from maple.bots.skill_settings import (
+    buff_names,
+    refuse_buff_lists,
+    refuse_mob_count_threshold,
+    refuse_training_skill,
+)
 from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.decision_makers.providers import (
     CharacterProvider,
@@ -27,10 +33,12 @@ from maple.decision_makers.providers import (
     MobsProvider,
     ProfileProvider,
     ScreenReadersProvider,
+    SkillsProvider,
 )
-from maple.decision_makers.rebuffs import solo_buffs
 from maple.decision_makers.rotation_setting import rotation_name
+from maple.launchers.profile import ProfileError
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
+from maple.model.characters import character_class as job_class
 from maple.model.mechanics.physics import Calibration, game_physics
 from maple.model.world import WorldMap
 from maple.screen.buffs import ICON_BASE, BuffsReader
@@ -99,6 +107,13 @@ class MapleBot(Bot, ABC):
         # unread.
         refuse_game_map(kwargs.pop("game_map", None))
         refuse_mobs(kwargs.pop("mobs", None))
+        refuse_training_skill(kwargs.pop("training_skill", None))
+        refuse_mob_count_threshold(kwargs.pop("mob_count_threshold", None))
+        refuse_buff_lists(
+            kwargs.pop("included_buffs", None), kwargs.pop("excluded_buffs", None)
+        )
+        #: The buffs `SoloRebuff` keeps up, by skill name: the profile's `buffs`.
+        self.buffs: tuple[str, ...] = buff_names(kwargs.get("buffs"))
         # Read here, in Main Process, so a bad `rotation` ends the launch with
         # one line; the Destination Provider reads it again, to the same answer.
         #: The rotation the profile names (`rotation_name`): a Bot decides which
@@ -119,8 +134,12 @@ class MapleBot(Bot, ABC):
                 f"{type(self).__name__} for {ign!r} needs `character_class` in the "
                 "profile's settings, one of: " + ", ".join(sorted(CHARACTER_MAPPING))
             )
-        self.job = character_class.title()
-        self.character_class = CHARACTER_MAPPING[self.job]
+        try:
+            self.job, self.character_class = job_class(character_class)
+        except LookupError as error:
+            raise ProfileError(
+                f"`character_class: {character_class}`: {error}"
+            ) from error
         self.detection_configs = detection_configs
         self.client_size = client_size
         self.models_path = models_path
@@ -200,18 +219,7 @@ class MapleBot(Bot, ABC):
             MINIMAP,
             *((MINIMAP_TITLE_READER,) if self.map_auto else ()),
         )
-        profile = Profile(
-            job=self.job,
-            map_id=map_id,
-            buffs=tuple(
-                buff.name
-                for buff in solo_buffs(
-                    self.character_class.skills,
-                    self.kwargs.get("included_buffs"),
-                    self.kwargs.get("excluded_buffs"),
-                )
-            ),
-        )
+        profile = Profile(job=self.job, map_id=map_id, buffs=self.buffs)
         reader_sprites = load_reader_sprites(readers, profile)
         map_id, reader_sprites = self._check_map_at_start(reader_sprites)
         if self.map_auto and self._detects_mobs():
@@ -247,6 +255,7 @@ class MapleBot(Bot, ABC):
             name_tags=reader_sprites.glyph_sets.get(NAME_TAG.name),
             buff_names=profile.buffs,
         )
+        providers.add(SkillsProvider, job=self.job)
         providers.add(
             MobsProvider,
             detection_classes=[

@@ -38,6 +38,9 @@ class Frame:
     :param ok: True only when the window was in front before and after the copy,
         and its client rectangle didn't move or resize in between.
     :param reason: why `ok` is False; empty when it is True.
+    :param origin: `(left, top)` of the client area on the screen, in screen px:
+        where the pixels' top left was. Client px and screen px are the same
+        size (the copy is 1:1).
     """
 
     pixels: NDArray[np.uint8]
@@ -46,6 +49,7 @@ class Frame:
     fresh: bool
     ok: bool
     reason: str = ""
+    origin: tuple[int, int] = (0, 0)
 
 
 class Camera(Protocol):
@@ -121,6 +125,7 @@ class FrameSource:
                 fresh=True,
                 ok=not reason,
                 reason=reason,
+                origin=(rect[0], rect[1]),
             )
             self._last = (handle, rect, frame)
             return frame

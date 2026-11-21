@@ -73,23 +73,60 @@ settings:
   # actual size -- see configs/game.ini.
   client_size: large
 
-  # Required: your character's job. It is no longer read from the screen.
-  # One of the keys in maple/model/characters/__init__.py
-  # (Magician, Cleric, Priest, Bishop, Rogue, Assassin, Hermit, ...).
+  # Required: your character's job, as the client names it, case aside:
+  # Swordsman, Fighter, Crusader, Hero, Page, WhiteKnight, Paladin, Spearman,
+  # DragonKnight, DarkKnight, Magician, Cleric, Priest, Bishop, Rogue, Assassin,
+  # Hermit, Bandit, ChiefBandit, Shadower... (JOB_IDS in
+  # maple/model/characters/jobs.py has them all). It is not read from the screen.
+  # A skill's name is looked up in this job's line only.
   character_class: Bishop
 
   # -- Combat ---------------------------------------------------------------
-  # The attack used on rotation. Must be a skill your class has AND a key you
-  # bound in configs/keybindings.ini.
-  training_skill: Genesis
+  # The skills come from the client's files: you set up no range, timing or
+  # duration. Every skill named below must be in your `Skill Keys`
+  # (configs/keybindings.ini) under the client's own name; find it with
+  # `python -m game_data search <name> --kind skill`. A name your job's line
+  # doesn't have refuses the start, and names the closest.
+  #
+  # `attacks`: in order, each skill and how many mobs must be in its reach for it
+  # to be cast. The first one that would fire is cast, and the rotation goes where
+  # the earliest one fires. Put the multi-mob attack first. A swordsman:
+  #   attacks:
+  #     - skill: Slash Blast
+  #       min_mobs: 3
+  #     - skill: Power Strike
+  #       min_mobs: 1
+  # A power strike or a slash blast plays the weapon's swings, so the weapon is
+  # read in game at launch (the `Equipment Menu` key opens the window). A skill
+  # with no reach (Magic Claw, or a bow's or wand's attack) refuses the start.
+  attacks:
+    - skill: Genesis
+      min_mobs: 8
 
-  # Minimum mobs on screen before the training skill is worth casting.
-  mob_count_threshold: 8
+  # Which way a one-sided attack faces when mobs are on both sides. `closest`
+  # faces the nearest mob, `most` the side with more mobs in reach. A two-sided
+  # attack (Heal, for one) never faces. Default: closest.
+  # facing: closest
 
-  # Buffs the bot keeps up on itself. Each must be bound in keybindings.ini.
-  included_buffs:
+  # Buffs the bot keeps up on itself: skill names, each in your `Skill Keys`.
+  # None is kept up by default, so list every one.
+  buffs:
     - Maple Warrior
     - Holy Symbol
+
+  # A skill is at the level given here, and at its maximum level when left out,
+  # until the skill window is read in game (#630). The launch warns about each
+  # skill whose reach, mobs hit or duration changes with its level and that has
+  # no level here: a buff below its maximum level is down for part of each cycle.
+  # skill_levels:
+  #   Slash Blast: 8
+  #   Iron Body: 5
+
+  # RETIRED -- each refuses the start and names its replacement:
+  #   training_skill       -> attacks
+  #   mob_count_threshold  -> the `min_mobs` of each attack in `attacks`
+  #   included_buffs       -> buffs
+  #   excluded_buffs       -> buffs (list only what you want kept up)
 
   # -- Upkeep ---------------------------------------------------------------
   # Number of pets to feed. 0 disables pet food entirely.

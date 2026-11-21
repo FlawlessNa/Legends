@@ -13,6 +13,8 @@ DecisionMaker:
 - `map`: the map's ID, its `WorldMap`, the game's physics, the position reader.
 - `mobs`: the map's mobs, as detection looks for them.
 - `character`: the character, and the buffs the profile casts.
+- `skills`: the character's skills, from the client's files, for the names
+  its `Skill Keys` give.
 - `profile`: the profile's speed and jump stats, and its Calibration constants.
 
 The replies switch, `REPLIES_ON`, is the generic Bot's too
@@ -40,14 +42,14 @@ keys:
 - `hunting_area`: the Hunting Area the `hunting_area` rotation hunts, its
   stretches a Path reaches, and whether another player has settled in it;
   each None with another rotation.
-- `cast_reach`: how far a cast of the training skill reaches, and how many
-  mobs make it worth it.
+- `attacks`: the profile's attacks, in order, each with its reach and
+  `min_mobs`, and which way a one-sided attack faces.
 """
 
 from botting.core import HANDLE, REPLIES_ON
 
+from .attacks import ATTACKS, FACING, Attack, AttacksProvider, Facing
 from .buffs import BUFFS_READING, BuffsProvider
-from .cast_reach import CAST_REACH, CastReach, CastReachProvider
 from .character import BUFF_NAMES, CHARACTER, CharacterProvider
 from .chat import CHAT_LINES, CHAT_SHOWN, ChatProvider
 from .client import CHAT_KEYS, FRAME, ClientProvider
@@ -79,7 +81,9 @@ from .menus import (
     INVENTORY_SPACE_LEFT,
     JUMP_MULTIPLIER,
     SPEED_MULTIPLIER,
+    WEAPON,
     AbilityMenuProvider,
+    EquipmentMenuProvider,
     InventoryMenuProvider,
 )
 from .minimap import (
@@ -123,6 +127,7 @@ from .screen_readers import (
     STATUS_BAR_READER,
     ScreenReadersProvider,
 )
+from .skills import SKILLS, SkillsProvider
 from .status_bar import STATUS_BAR_READING, StatusBarProvider
 
 __all__ = [
@@ -132,12 +137,12 @@ __all__ = [
     "ALWAYS_RELEASE_KEYS",
     "AREA_PRESENCE",
     "AREA_STRETCHES",
+    "ATTACKS",
     "AVAILABLE_AP",
     "BUFFS_READER",
     "BUFFS_READING",
     "BUFF_NAMES",
     "CALIBRATION",
-    "CAST_REACH",
     "CHARACTER",
     "CHAT_KEYS",
     "CHAT_LINES",
@@ -146,6 +151,7 @@ __all__ = [
     "CURRENT_MESOS",
     "DESTINATION",
     "DESTINATION_PLATFORM",
+    "FACING",
     "FRAME",
     "FRAME_CHECK",
     "GAME_PHYSICS",
@@ -176,19 +182,23 @@ __all__ = [
     "QUICK_SLOTS_READING",
     "READER_SPRITES",
     "REPLIES_ON",
+    "SKILLS",
     "SPEED_MULTIPLIER",
     "STATUS_BAR_READER",
     "STATUS_BAR_READING",
+    "WEAPON",
     "WORLD_MAP",
     "AbilityMenuProvider",
     "AreaPresence",
+    "Attack",
+    "AttacksProvider",
     "BuffsProvider",
-    "CastReach",
-    "CastReachProvider",
     "CharacterProvider",
     "ChatProvider",
     "ClientProvider",
     "DestinationProvider",
+    "EquipmentMenuProvider",
+    "Facing",
     "HuntingAreaProvider",
     "InventoryMenuProvider",
     "MapProvider",
@@ -205,6 +215,7 @@ __all__ = [
     "ProfileProvider",
     "QuickSlotsProvider",
     "ScreenReadersProvider",
+    "SkillsProvider",
     "StatusBarProvider",
     "actionable",
     "pathing",

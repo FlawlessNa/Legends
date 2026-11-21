@@ -224,22 +224,6 @@ of held keys does not say which of them may legally repeat.
 _Avoid_: Auto-repeat, key repeat — those name the repeating itself, not which key
 is entitled to it.
 
-**Telecast**:
-A movement and a skill cast performed as one: the teleport and the ultimate are
-pressed together, released, and pressed again one teleport animation later, so
-the character casts while it blinks. A post-processing pass over a finished Input
-Sequence rather than a builder — it runs at dispatch, wrapped around the movement
-compiler, and truncates the result to the skill's animation time.
-_Avoid_: Telecast movement, teleport-cast — telecasting produces no movement of
-its own, it rebuilds one that was already compiled.
-
-**Teleport region**:
-A maximal run of consecutive Steps carrying the teleport key alone — what a
-`TELEPORT_*` component compiles to, and the unit a Telecast replaces. Its own
-duration is the budget the replacement has to spend, so nothing outside the
-compiled Input Sequence is needed to rebuild it.
-_Avoid_: Teleport block, teleport chunk.
-
 ## Movement checking
 
 **Invariant**:
@@ -586,6 +570,39 @@ passing one after the other read as one who stayed. Once settled, the
 maintainer is alerted on Discord and the character keeps away from the other
 players' mobs, never withholding a cast.
 _Avoid_: Camping, occupied, taken — a player passing through is not settled.
+
+## Attacks
+
+How the character hits mobs (ADR 0005). A skill's numbers come from the client's
+files, and which skills attack is the profile's.
+
+**Attack**:
+A skill in the profile's `attacks`, with its `min_mobs`: how many mobs must be in
+its Reach for it to be cast. The list is ordered, and the first Attack that would
+fire is cast; the Hunting Area rotation ranks spots by the earliest one that
+would fire there. A one-sided Attack faces the closest mob or the larger group,
+as the profile's `facing` says.
+_Avoid_: Training skill, main skill (both were the one skill the retired
+`training_skill` named), mob threshold (the retired `mob_count_threshold`).
+
+**Reach**:
+The box an Attack hits, around the character's feet, in virtual px, as the
+client stores it: facing left, `x` to the right and `y` down, mirrored when the
+character faces right. A mob is in Reach when its detection box overlaps the box
+by at least one client pixel on each axis, whether the boxes are in client or
+virtual px. A Reach is two-sided when it is symmetric about the character, and
+one-sided otherwise.
+_Avoid_: Range, attack range - `range` is a client field of some skills that is
+not the Reach, and nobody measures a Reach on screen.
+
+**Weapon-based attack**:
+An Attack that has no box and no action of its own (Power Strike, Slash Blast),
+so it plays one of the held weapon's swings, drawn at random per cast. Its Reach
+is what every one of those swings reaches, the overlap of their boxes, and its
+cast time is the longest of them, at the weapon's speed. The weapon is read in
+game at Session launch.
+_Avoid_: Normal attack, basic attack - those name the swing itself, which no
+profile lists.
 
 ## Chat replies
 

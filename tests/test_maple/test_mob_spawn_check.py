@@ -26,13 +26,11 @@ from maple.decision_makers import (
     CheckStillInMap,
     MobsHitting,
     Rotation,
-    TelecastMobsHitting,
 )
 from maple.decision_makers.providers import (
     AREA_STRETCHES,
     DESTINATION,
     POSITION,
-    CastReach,
     DestinationProvider,
 )
 from maple.decision_makers.providers.hunting_area import NOBODY
@@ -43,7 +41,7 @@ from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import RECOVERY_MOB_SPAWN_RESTORED
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
 
-from .serving import destination, override
+from .serving import attack, destination, override
 from .test_hunting_area import fixture_map
 
 WORLD = WorldMap.from_map_data(walk_corridor())
@@ -76,10 +74,9 @@ class _Bot:
             mob_spawn_alert_threshold=3,
         )
         self.hitting = object.__new__(MobsHitting)
-        self.telecast = object.__new__(TelecastMobsHitting)
         self.supervisor = Supervisor(
             "T",
-            [self.check, self.hitting, self.telecast],
+            [self.check, self.hitting],
             resolve_pauses([CheckMobsStillSpawn]),
         )
         self.toggles = 0
@@ -112,7 +109,6 @@ def test_the_failsafe_pauses_mob_hitting_and_wanders_until_mobs_return(
 
     async def mobs_return() -> None:
         during["hitting"] = bot.paused(MobsHitting)
-        during["telecast"] = bot.paused(TelecastMobsHitting)
         during["claim"] = bot.data.claim_on(DESTINATION)
         await asyncio.sleep(0)
 
@@ -121,13 +117,11 @@ def test_the_failsafe_pauses_mob_hitting_and_wanders_until_mobs_return(
     asyncio.run(bot.check._failsafe())
 
     assert during["hitting"] == [PauseKind.SCOPED]
-    assert during["telecast"] == [PauseKind.SCOPED]
     claim = during["claim"]
     assert claim is not None
     assert claim.holder == f"CheckMobsStillSpawn({bot.data.ign})"  # type: ignore[attr-defined]
     # Handed back once mobs returned, and the chat shown again.
     assert bot.paused(MobsHitting) == []
-    assert bot.paused(TelecastMobsHitting) == []
     assert bot.data.claim_on(DESTINATION) is None
     assert bot.toggles == 2
     assert RECOVERY_MOB_SPAWN_RESTORED in bot.emitted
@@ -162,7 +156,6 @@ def test_the_failsafe_cancelled_half_way_leaves_nothing_paused_or_claimed(
     asyncio.run(scenario())
 
     assert bot.paused(MobsHitting) == []
-    assert bot.paused(TelecastMobsHitting) == []
     assert bot.data.claim_on(DESTINATION) is None
     assert bot.data.read(DESTINATION) == before, (
         "the Provider's own destination is back"
@@ -190,7 +183,6 @@ def test_a_failsafe_that_times_out_stops_the_bot_for_the_user(bot: _Bot) -> None
         CheckMobsStillSpawn,
         CheckStillInMap,
         MobsHitting,
-        TelecastMobsHitting,
         reason="mobs did not spawn again",
     )
     assert bot.paused(MobsHitting) == [PauseKind.USER]
@@ -204,7 +196,6 @@ def test_a_failsafe_that_times_out_stops_the_bot_for_the_user(bot: _Bot) -> None
 def test_what_it_pauses_and_steers_is_declared() -> None:
     assert resolve_pauses([CheckMobsStillSpawn])[CheckMobsStillSpawn] == {
         MobsHitting,
-        TelecastMobsHitting,
         Rotation,
         CheckMobsStillSpawn,
         CheckStillInMap,
@@ -251,11 +242,10 @@ def test_with_a_hunting_area_the_failsafe_wanders_its_stretches(
         AREA_WORLD,
         _here,
         rotation="hunting_area",
-        mob_count_threshold=2,
         area=CORNER,
         stretches=stretches,
         presence=NOBODY,
-        cast_reach=CastReach(left=100, right=100, up=100, down=50, min_mobs=2),
+        attacks=(attack(2),),
     )
     bot = _Bot(mocker, provider)
 

@@ -186,7 +186,7 @@ def reachable(
     [
         {},
         {"rotation": "random"},
-        {"rotation": "smart", "mob_count_threshold": 2},
+        {"rotation": "smart"},
         {"smart_rotation_enabled": True},
     ],
     ids=["no rotation", "random", "smart", "smart_rotation_enabled"],

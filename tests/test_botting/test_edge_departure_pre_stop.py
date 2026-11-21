@@ -30,7 +30,7 @@ import pytest
 
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
 from botting.controller.inputs.held_keys_ledger import InputState
-from maple.model.characters.maple_skills import MapleSkill
+from botting.models_abstractions import Skill
 from maple.model.mechanics import movement_mechanics_v2
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
@@ -53,18 +53,24 @@ def jump_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @dataclass(frozen=True)
-class _StubSkill(MapleSkill):
+class _StubSkill(Skill):
     """A `Skill` whose key bind does not go through the keybindings config -
-    mirrors `test_telecast.py`'s `_StubSkill`."""
+    mirrors `test_cast_window.py`'s `_StubSkill`."""
 
+    name: str = ""
+    cast_time: float = field(default=0.0, repr=False)
     key: str = field(default="", repr=False)
+
+    @property
+    def animation_time(self) -> float:
+        return self.cast_time
 
     @lru_cache  # noqa: B019
     def key_bind(self, ign: str) -> str:
         return self.key
 
 
-TELEPORT_SKILL = _StubSkill("Teleport", "Movement", key="shift", animation_time=0.6)
+TELEPORT_SKILL = _StubSkill("Teleport", key="shift", cast_time=0.6)
 
 _WALK_RIGHT = _MovementComponent(MovementTypes.WALK_RIGHT, 20)
 # A jump lasts its flight, which its component carries (#396): any will do here.
@@ -120,7 +126,7 @@ def _plan(
 def _compile(
     plan: tuple[_MovementComponent, ...],
     total_duration: float | None,
-    teleport: MapleSkill | None = None,
+    teleport: Skill | None = None,
 ) -> KeyboardInputWrapper:
     wrapper = compile_movements(
         InputState(frozenset()),

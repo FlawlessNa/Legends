@@ -5,9 +5,9 @@ is compiled with at dispatch.
 
 `PathingProvider` serves the `MovementHandler`, the Path, the Movement Plan,
 the Action duration cap and the release flag (#442). It is built once per Bot,
-when a DecisionMaker reads one of its keys (`Rotation`, `TelecastMobsHitting`,
-`TrialRunner`), and configured from the profile: `movements_duration` is the
-cap, `disable_teleport` takes the teleport skill away.
+when a DecisionMaker reads one of its keys (`Rotation`, `TrialRunner`), and
+configured from the profile: `movements_duration` is the cap,
+`disable_teleport` plans and compiles with no teleport skill.
 
 **The target.** A Path is planned to `DESTINATION`, which `DestinationProvider`
 picks on the map's platforms, or whoever claims it serves (`TrialRunner`, whose
@@ -54,12 +54,12 @@ from maple.model.navigation import FootholdGraphs, Path
 from maple.model.world import Platform, WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 
-from .character import CHARACTER
 from .destination import DESTINATION
 from .map import GAME_PHYSICS, WORLD_MAP
 from .menus import JUMP_MULTIPLIER, SPEED_MULTIPLIER
 from .minimap import POSITION
 from .profile import CALIBRATION, PROFILE_JUMP_MULTIPLIER, PROFILE_SPEED_MULTIPLIER
+from .skills import SKILLS
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -73,15 +73,17 @@ class PathingProvider(Provider):
     Plan, the Action duration cap and the release flag.
 
     Configured from the profile: `movements_duration` is the cap a plan is
-    compiled against, and `disable_teleport` takes the teleport skill off the
-    character before the handler is made. `setup()` makes the handler, starts
+    compiled against, and `disable_teleport` plans and compiles with no
+    teleport skill. The teleport skill is `SKILLS`' `Teleport`, which nothing
+    here changes, and only when its cast time is known: a Teleport with none
+    is planned as no teleport, logged at setup. `setup()` makes the handler, starts
     building its graph, and plans the first Path. A Trial batch changes the cap,
     the precision Knobs and whether Paths may teleport with `configure`.
     """
 
     needs = (
         HANDLE,
-        CHARACTER,
+        SKILLS,
         WORLD_MAP,
         GAME_PHYSICS,
         POSITION,
@@ -120,10 +122,7 @@ class PathingProvider(Provider):
         self._path_read_at: float | None = None
 
     def setup(self) -> None:
-        if self.disable_teleport:
-            # A class-level dict, so every character of the class loses it:
-            # `Rotation` always did this, and fixing it is #49's.
-            self.read(CHARACTER).skills.pop("Teleport", None)
+        self._warn_of_a_teleport_with_no_cast_time()
         self.register(ACTION_DURATION, lambda: self._duration)
         self.register(MOVEMENT_HANDLER, self._new_handler)
         handler = self.read(MOVEMENT_HANDLER)
@@ -223,7 +222,7 @@ class PathingProvider(Provider):
             it (#538).
         :param lead: Lead the plan by how far the character has walked since
             the frame its Path was planned from. A DecisionMaker that compiles a
-            plan another planned (the telecast) passes False: no lead.
+            plan another planned passes False: no lead.
         """
         physics = self.physics()
         return functools.partial(
@@ -233,7 +232,7 @@ class PathingProvider(Provider):
             ign=self.data.ign,
             speed=physics.walk_speed,
             climb_speed=physics.climb_speed,
-            teleport=self.read(CHARACTER).skills.get("Teleport"),
+            teleport=self._profile_teleport(),
             total_duration=self.read(ACTION_DURATION),
             always_release=self.read(ALWAYS_RELEASE_KEYS),
             walk_acceleration=physics.walk_acceleration,
@@ -318,7 +317,36 @@ class PathingProvider(Provider):
         """
         if not self._teleport:
             return None
-        return self.read(CHARACTER).skills.get("Teleport")
+        return self._profile_teleport()
+
+    def _profile_teleport(self) -> MapleSkill | None:
+        """
+        `SKILLS`' `Teleport`; `None` when the character has none, the profile's
+        `disable_teleport` takes it away, or its cast time isn't known.
+
+        No Teleport of the client's has an action of its own: its cast time is
+        its effect's duration (#646), and some have no effect. A Movement Plan
+        that cast one with no cast time couldn't be compiled, so Paths walk.
+        """
+        if self.disable_teleport:
+            return None
+        teleport = self.read(SKILLS).get("Teleport")
+        if teleport is None or teleport.cast_time is None:
+            return None
+        return teleport
+
+    def _warn_of_a_teleport_with_no_cast_time(self) -> None:
+        """Say once, at setup, that the character's Teleport isn't planned."""
+        teleport = self.read(SKILLS).get("Teleport")
+        if self.disable_teleport or teleport is None or teleport.cast_time is not None:
+            return
+        logger.warning(
+            "%s plans no teleport: %s (%d) has no cast time in the game data "
+            "(no action, and no effect to time it), so Paths walk.",
+            self,
+            teleport.name,
+            teleport.id,
+        )
 
     def _plan_path(self) -> Path | None:
         """The Path from the current position to `DESTINATION`; `None` holds."""

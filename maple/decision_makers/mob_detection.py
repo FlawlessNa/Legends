@@ -1,10 +1,10 @@
 """
-Mobs on screen: how many, where, and which way the closest one is. Plain
-functions, which `MobsHitting`, the rotation's smart target and
-`CheckMobsStillSpawn` call; they were `MobsHittingMixin`'s methods.
+Mobs on screen: how many, and where. Plain functions, which `MobsHitting`,
+the rotation's sources and `CheckMobsStillSpawn` call; they were
+`MobsHittingMixin`'s methods. Which attack reaches them is
+`attack_choice`'s.
 """
 
-import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -49,20 +49,6 @@ def get_mobs_positions_in_img(
     return [pos for mob in mobs for pos in mob.get_onscreen_mobs(img, handle, **kwargs)]
 
 
-def box_center(box: Sequence[int]) -> tuple[float, float]:
-    """
-    Center point of a detection box, in the x1, y1, x2, y2 format that
-    `Character.get_onscreen_position` returns.
-
-    Exists so the on-screen position of the character - a *box* - can be handed
-    to `get_closest_mob_direction`, which compares *points*.
-    :param box: Rectangle (x1, y1, x2, y2).
-    :return: (x, y) center of that rectangle.
-    """
-    x1, y1, x2, y2 = box
-    return (x1 + x2) / 2, (y1 + y2) / 2
-
-
 def mobs_in_virtual_px(
     mobs: list[Sequence[int]], client_size: tuple[int, int], camera: Camera
 ) -> list[tuple[float, float]]:
@@ -81,21 +67,21 @@ def mobs_in_virtual_px(
     ]
 
 
-def get_closest_mob_direction(
-    character_pos: Sequence[float], mobs: list[Sequence[int]]
-) -> str | None:
+def mob_boxes_in_virtual_px(
+    mobs: list[Sequence[int]], client_size: tuple[int, int], camera: Camera
+) -> list[tuple[float, float, float, float]]:
     """
-    Given current character position and list of detected mobs on screen,
-    return the (horizontal) direction of the closest mob relative to character.
-    :param character_pos: Point (x, y) - use `box_center` on a detection box.
-    :param mobs: List of rectangles (x1, y1, x2, y2), as `get_onscreen_mobs` returns.
-    :return: Direction of closest mob relative to character, None if no mobs.
+    Where mobs found on screen are, in virtual px, as boxes `(left, top, right,
+    bottom)`: each detection box's corners placed through the camera of the
+    frame they were found on, as `mobs_in_virtual_px` places its feet.
+    :param mobs: Rectangles (x1, y1, x2, y2) in client px, as
+        `get_onscreen_mobs` returns.
+    :param client_size: The size of the client they were found on.
+    :param camera: The camera of the frame they were found on.
     """
-    if not mobs:
-        return None
-    centers = [box_center(rect) for rect in mobs]
-    distances = [math.dist(character_pos, center) for center in centers]
-
-    closest_mob_idx = int(np.argmin(distances))
-    horizontal_distance = centers[closest_mob_idx][0] - character_pos[0]
-    return "left" if horizontal_distance < 0 else "right"
+    boxes = []
+    for x1, y1, x2, y2 in mobs:
+        left, top = camera.to_virtual((x1, y1), client_size)
+        right, bottom = camera.to_virtual((x2, y2), client_size)
+        boxes.append((left, top, right, bottom))
+    return boxes

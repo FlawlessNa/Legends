@@ -26,7 +26,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar, Self, cast
+from typing import Any, Self, cast
 
 import pytest
 
@@ -50,7 +50,6 @@ from maple.calibration.specs import (
 )
 from maple.decision_makers.providers import (
     CALIBRATION,
-    CHARACTER,
     DESTINATION,
     FRAME,
     MAP_ID,
@@ -58,6 +57,7 @@ from maple.decision_makers.providers import (
     PATH,
     POSITION,
     POSITION_FUSION,
+    SKILLS,
     WORLD_MAP,
     ClientProvider,
     DestinationProvider,
@@ -86,13 +86,6 @@ class _Pipe:
 
     def send(self, request: ActionRequest) -> None:
         self.sent.append(request)
-
-
-class _Character:
-    """A character with no skills - `walk_corridor` needs none, and Teleport would
-    change which graph the Paths are planned on."""
-
-    skills: ClassVar[dict[str, object]] = {}
 
 
 @dataclass
@@ -159,7 +152,6 @@ def harness() -> _Harness:
         world_map,
         virtual,
         data=data,
-        character=_Character(),
         game_physics=corpus.LAB_PHYSICS_VALUES,
         handle=corpus.LAB_HANDLE,
     )
@@ -632,13 +624,11 @@ def test_a_batch_planned_without_teleport_builds_a_handler_without_it(
     otherwise teleport along the walk being measured.
     """
 
-    class _Teleporter:
-        skills: ClassVar[dict[str, object]] = {"Teleport": corpus.LAB_TELEPORT}
-
     runner: Any = harness.runner
-    # The character `CHARACTER` serves, as a teleporting class's would be.
-    override(runner.data, CHARACTER, update_function=_Teleporter)
-    runner.data.update_attribute("character")
+    # The skills `SKILLS` serves, as a teleporting character's would be.
+    teleporting = {"Teleport": corpus.LAB_TELEPORT}
+    override(runner.data, SKILLS, update_function=lambda: teleporting)
+    runner.data.update_attribute("skills")
     runner.schedule = TrialSchedule(
         "teleport-lab",
         ENTRY.name,

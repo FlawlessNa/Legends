@@ -15,6 +15,10 @@
     cat.item_icons()        -> tuple[ItemIcon, ...]
     cat.meso_frames()       -> tuple[MesoFrame, ...]
     cat.damage_digits()     -> tuple[DamageDigit, ...]
+    cat.weapon(1302000)     -> WeaponData
+    cat.swings("swordOL", 0) -> tuple[Swing, ...]
+    cat.weapon_icons()      -> tuple[WeaponIcon, ...]
+    cat.action_delays("swingO1") -> list[int], in milliseconds, sign kept
 
 **Names first, IDs accepted.** A lookup takes a name or an ID: an `int`, or a
 string of digits. A name matches whole and case-insensitively, and a map's
@@ -65,6 +69,9 @@ from .model import (
     SkillData,
     SkillLevel,
     Spawn,
+    Swing,
+    WeaponData,
+    WeaponIcon,
 )
 from .schema import SCHEMA_VERSION, catalogue_file
 from .trees import CatalogueError
@@ -73,6 +80,8 @@ CLOSEST: Final = 5
 
 # What a lookup can name, and the table each kind is in.
 KINDS: Final = {"map": "maps", "mob": "mobs", "skill": "skills"}
+# `_id` also looks weapons up, which `search` and `ids` don't list.
+_TABLES: Final = KINDS | {"weapon": "weapons"}
 
 type _Value = int | float | str | None
 
@@ -382,7 +391,8 @@ class Catalogue:
         """
         skill_id = self._id("skill", name_or_id)
         row = self._one("SELECT * FROM skills WHERE id = ?", skill_id)
-        _, job, name, description, type_, max_level, actions_json, icon = row
+        _, job, name, description, type_, max_level, actions_json, icon = row[:8]
+        effect_duration, caster_move = row[8:]
         actions = _json_strings(actions_json)
         levels: list[SkillLevel] = []
         for level_row in self._all(
@@ -418,6 +428,8 @@ class Catalogue:
             actions=actions,
             icon=_text(icon),
             levels=tuple(levels),
+            effect_duration=_optional_int(effect_duration),
+            caster_move=bool(caster_move),
         )
 
     def action_duration(self, action: str) -> int:
@@ -432,14 +444,91 @@ class Catalogue:
             "SELECT duration FROM actions WHERE action = ? LIMIT 1", action
         )
         if not found:
-            names = [_str(name) for (name,) in self._all("SELECT action FROM actions")]
-            closest = difflib.get_close_matches(action, sorted(set(names)), n=CLOSEST)
-            hint = f"; the closest are: {', '.join(closest)}" if closest else ""
-            raise LookupError(f"the character has no action {action!r}{hint}")
+            raise self._no_action(action)
         duration = found[0][0]
         if duration is None:
             raise LookupError(f"none of the action {action!r}'s frames has a delay")
         return _int(duration)
+
+    def action_delays(self, action: str) -> list[int]:
+        """
+        An action's frame delays in milliseconds, in order, as the client
+        gives them: a negative delay keeps its sign, and a frame with no delay
+        is left out.
+
+        :raises LookupError: The character has no such action.
+        """
+        found = self._all(
+            "SELECT delay FROM actions WHERE action = ? ORDER BY frame", action
+        )
+        if not found:
+            raise self._no_action(action)
+        return [_int(delay) for (delay,) in found if delay is not None]
+
+    def weapon(self, name_or_id: str | int) -> WeaponData:
+        """
+        A weapon, by name or ID.
+
+        :raises LookupError: Nothing has that ID; or the name matches several
+            weapons, or none.
+        """
+        weapon_id = self._id("weapon", name_or_id)
+        _, name, afterimage, speed, attack = self._one(
+            "SELECT * FROM weapons WHERE id = ?", weapon_id
+        )
+        return WeaponData(
+            id=weapon_id,
+            name=_text(name),
+            afterimage=_text(afterimage),
+            attack_speed=_optional_int(speed),
+            attack=_optional_int(attack),
+        )
+
+    def swings(self, afterimage: str, bracket: int) -> tuple[Swing, ...]:
+        """
+        The swings of a swing set, such as `swordOL`, in a bracket, in the
+        client's order.
+
+        :raises LookupError: The set has no such bracket, or no such set.
+        """
+        found = self._all(
+            "SELECT * FROM swings WHERE afterimage = ? AND bracket = ? ORDER BY rowid",
+            afterimage,
+            bracket,
+        )
+        if not found:
+            sets = sorted(
+                {_str(s) for (s,) in self._all("SELECT afterimage FROM swings")}
+            )
+            if afterimage not in sets:
+                raise LookupError(
+                    f"no swing set is named {afterimage!r}"
+                    f"{_closest_hint(afterimage, sets)}"
+                )
+            brackets = sorted(
+                {
+                    _int(b)
+                    for (b,) in self._all(
+                        "SELECT bracket FROM swings WHERE afterimage = ?", afterimage
+                    )
+                }
+            )
+            raise LookupError(
+                f"{afterimage} has no bracket {bracket}; it has {brackets}"
+            )
+        return tuple(
+            Swing(_str(a), _int(b), _str(act), _int(lx), _int(ly), _int(rx), _int(ry))
+            for a, b, act, lx, ly, rx, ry in found
+        )
+
+    def weapon_icons(self) -> tuple[WeaponIcon, ...]:
+        """Every weapon's icon, by weapon ID."""
+        return tuple(
+            WeaponIcon(_int(weapon), _text(image), _int(x), _int(y))
+            for weapon, image, x, y in self._all(
+                "SELECT * FROM weapon_icons ORDER BY weapon"
+            )
+        )
 
     def skill_duration(self, name_or_id: str | int) -> int:
         """
@@ -537,11 +626,20 @@ class Catalogue:
             )
         )
 
+    def _no_action(self, action: str) -> LookupError:
+        """The error for an action the character doesn't have, naming the
+        closest it does."""
+        names = {_str(name) for (name,) in self._all("SELECT action FROM actions")}
+        return LookupError(
+            f"the character has no action {action!r}"
+            f"{_closest_hint(action, sorted(names))}"
+        )
+
     def _id(self, kind: str, name_or_id: str | int) -> int:
         """The ID of the map, mob or skill (`kind`) a name or an ID names."""
         if isinstance(name_or_id, int) or name_or_id.strip().isdigit():
             found_id = int(name_or_id)
-            if not self._all(f"SELECT 1 FROM {KINDS[kind]} WHERE id = ?", found_id):
+            if not self._all(f"SELECT 1 FROM {_TABLES[kind]} WHERE id = ?", found_id):
                 raise LookupError(f"no {kind} has the ID {found_id}")
             return found_id
         wanted = name_or_id.strip().casefold()
@@ -581,7 +679,7 @@ class Catalogue:
             return [
                 (_int(found_id), _text(name), () if name is None else (_str(name),))
                 for found_id, name in self._all(
-                    f"SELECT id, name FROM {KINDS[kind]} ORDER BY id"
+                    f"SELECT id, name FROM {_TABLES[kind]} ORDER BY id"
                 )
             ]
         found: list[tuple[int, str | None, tuple[str, ...]]] = []
@@ -601,6 +699,13 @@ class Catalogue:
 
     def _all(self, sql: str, *parameters: _Value) -> list[Sequence[_Value]]:
         return self._db.execute(sql, parameters).fetchall()
+
+
+def _closest_hint(name: str, candidates: Sequence[str]) -> str:
+    """`; the closest are: ...`, the `candidates` closest to `name`; empty when
+    none is close."""
+    closest = difflib.get_close_matches(name, candidates, n=CLOSEST)
+    return f"; the closest are: {', '.join(closest)}" if closest else ""
 
 
 def _full_name(name: str | None, street: str | None) -> str | None:

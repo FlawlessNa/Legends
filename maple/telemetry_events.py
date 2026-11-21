@@ -80,13 +80,16 @@ RECOVERY_LADDER_RESET: Final = "recovery.ladder_reset"
 RECOVERY_POSITION_UNSURE: Final = "recovery.position_unsure"
 
 # --- combat ---------------------------------------------------------------
-#: Enough mobs were in range, so the training skill is being cast.
+#: Enough mobs were in an attack's reach, so it is being cast: the first of
+#: the profile's `attacks` that fired (#638).
 COMBAT_MOBS_HIT: Final = "combat.mobs_hit"
-#: The training skill is being fused into the movement about to be dispatched.
+#: A decision cast nothing while a mob's box overlapped one of a weapon-based
+#: attack's swings but not their overlap, its reach: the mob may have been hit,
+#: and wasn't counted (spec #631 D12). At most once a second (#638).
+COMBAT_PARTIAL_REACH: Final = "combat.partial_reach"
+#: retired: never emitted since #631
 COMBAT_TELECAST: Final = "combat.telecast"
-#: Telecast was chosen but the compiled sequence held no teleport to fuse into,
-#: so the ultimate is cast in place instead. Emitted from Main Process, at
-#: dispatch, which is the only place the truncated compile is visible.
+#: retired: never emitted since #631
 COMBAT_TELECAST_UNAVAILABLE: Final = "combat.telecast_unavailable"
 
 # --- inventory ------------------------------------------------------------
@@ -252,25 +255,52 @@ class LadderResetPayload(TargetFields):
     reason: str
 
 
-class MobsHitPayload(TypedDict):
-    """``combat.mobs_hit``: how many mobs, and which way the cast faces."""
+class MobOffset(TypedDict):
+    """A mob's detection box from the character's feet, in client px."""
+
+    left: int
+    top: int
+    right: int
+    bottom: int
+
+
+class FeetAnchor(TypedDict):
+    """
+    Where a ``MobOffset`` is measured from, on the screen, so a recording's video
+    (the whole screen, 1:1 with client px) can place it: the character's feet in
+    client px, and the client area's top left in screen px (#640). A mob's box
+    on a video frame is its offset plus ``feet_x``/``feet_y`` plus
+    ``client_left``/``client_top``.
+    """
+
+    feet_x: float
+    feet_y: float
+    client_left: int
+    client_top: int
+
+
+class MobsHitPayload(FeetAnchor):
+    """
+    ``combat.mobs_hit``: how many mobs, and which way the cast faces; since
+    #638, the attack cast and each counted mob's box from the feet; since #640,
+    the ``FeetAnchor`` fields.
+    """
 
     mob_count: int
     direction: str | None
+    attack: str
+    mobs: list[MobOffset]
 
 
-class TelecastPayload(TypedDict):
-    """``combat.telecast``: the two skills being fused."""
+class PartialReachPayload(FeetAnchor):
+    """
+    ``combat.partial_reach``: the weapon-based attack, and the boxes from the
+    feet of the mobs in one of its swings and out of its reach; since #640, the
+    ``FeetAnchor`` fields.
+    """
 
-    teleport_skill: str
-    ultimate_skill: str
-
-
-class TelecastUnavailablePayload(TypedDict):
-    """``combat.telecast_unavailable``: which fallback branch was taken."""
-
-    ultimate_skill: str
-    reason: str
+    attack: str
+    mobs: list[MobOffset]
 
 
 class InventoryCleanupPayload(TypedDict):

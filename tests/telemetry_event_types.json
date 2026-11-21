@@ -34,6 +34,7 @@
     "CHAT_REPLY_SENT": "chat.reply_sent",
     "CHAT_REPLY_SILENT": "chat.reply_silent",
     "COMBAT_MOBS_HIT": "combat.mobs_hit",
+    "COMBAT_PARTIAL_REACH": "combat.partial_reach",
     "COMBAT_TELECAST": "combat.telecast",
     "COMBAT_TELECAST_UNAVAILABLE": "combat.telecast_unavailable",
     "INVENTORY_CLEANUP_COMPLETED": "inventory.cleanup_completed",

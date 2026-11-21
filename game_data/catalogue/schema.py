@@ -13,7 +13,7 @@ and the unversioned `catalogue.sqlite` of older stores, in place.
 
 from typing import Final
 
-SCHEMA_VERSION: Final = 3
+SCHEMA_VERSION: Final = 5
 
 
 def catalogue_file(version: int) -> str:
@@ -182,7 +182,9 @@ TABLES: Final = (
         type INTEGER,
         max_level INTEGER NOT NULL,
         actions TEXT NOT NULL,
-        icon TEXT
+        icon TEXT,
+        effect_duration INTEGER,
+        caster_move INTEGER NOT NULL
     )""",
     """CREATE TABLE skill_levels (
         skill INTEGER NOT NULL,
@@ -210,6 +212,29 @@ TABLES: Final = (
     """CREATE TABLE item_icons (
         item INTEGER PRIMARY KEY,
         category TEXT NOT NULL,
+        image TEXT,
+        origin_x INTEGER NOT NULL,
+        origin_y INTEGER NOT NULL
+    )""",
+    """CREATE TABLE weapons (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        afterimage TEXT,
+        attack_speed INTEGER,
+        attack INTEGER
+    )""",
+    """CREATE TABLE swings (
+        afterimage TEXT NOT NULL,
+        bracket INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        lt_x INTEGER NOT NULL,
+        lt_y INTEGER NOT NULL,
+        rb_x INTEGER NOT NULL,
+        rb_y INTEGER NOT NULL,
+        PRIMARY KEY (afterimage, bracket, action)
+    )""",
+    """CREATE TABLE weapon_icons (
+        weapon INTEGER PRIMARY KEY,
         image TEXT,
         origin_x INTEGER NOT NULL,
         origin_y INTEGER NOT NULL

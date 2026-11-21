@@ -232,12 +232,14 @@ def test_extracting_a_slice_of_the_client_into_a_temporary_store_completes(
 
 # The slice the catalogue checks extract: every map and what it draws from, the
 # strings that name them, every mob and skill with the packs that hold them,
-# and the character's body, whose actions time the skills: `Character`'s own
-# archives and its `_Canvas`, not the equipment beside them. About 280 MB,
+# the character's body, whose actions time the skills: `Character`'s own
+# archives and its `_Canvas`, and the weapons and their swing sets
+# (`BODY_FOLDERS`), not the other equipment. About 330 MB,
 # decoded once for the module, in several minutes.
 CATALOGUE_TREES = ("Map", "String", "Mob", "Skill")
 CATALOGUE_PACKS = ("Mob_00000.ms", "Skill_00000.ms")
 BODY = "Character"
+BODY_FOLDERS = ("Weapon", "Afterimage")
 
 
 @pytest.fixture(scope="module")
@@ -262,6 +264,8 @@ def catalogue_store(
         for file in (data / BODY).iterdir():
             if file.is_file():
                 shutil.copy2(file, client / BODY / file.name)
+        for folder in BODY_FOLDERS:
+            shutil.copytree(data / BODY / folder, client / BODY / folder)
         extract(client, root, catalogue=build_catalogue)
         yield root
     finally:
@@ -340,6 +344,47 @@ def test_swing_o1_takes_800_ms(catalogue_store: Path) -> None:
         assert cat.action_duration("swingO1") == 800
 
 
+def test_a_one_handed_sword_swings_the_swordol_set(catalogue_store: Path) -> None:
+    with Catalogue.latest(catalogue_store) as cat:
+        sword = cat.weapon(1302000)
+
+    assert sword.afterimage == "swordOL"
+    assert sword.attack_speed == 4
+    assert sword.attack == 1
+
+
+def test_swing_o1_of_swordol_widens_at_bracket_10(catalogue_store: Path) -> None:
+    with Catalogue.latest(catalogue_store) as cat:
+        first = {s.action: s for s in cat.swings("swordOL", 0)}["swingO1"]
+        last = {s.action: s for s in cat.swings("swordOL", 10)}["swingO1"]
+
+    assert (first.lt_x, first.lt_y, first.rb_x, first.rb_y) == (-88, -62, -18, -6)
+    assert (last.lt_x, last.lt_y, last.rb_x, last.rb_y) == (-90, -72, -18, -6)
+
+
+def test_swing_o1_has_three_frames_of_300_150_and_350_ms(
+    catalogue_store: Path,
+) -> None:
+    with Catalogue.latest(catalogue_store) as cat:
+        assert cat.action_delays("swingO1") == [300, 150, 350]
+
+
+def test_every_weapon_with_a_swing_set_has_an_icon_and_a_swing_set_in_the_catalogue(
+    catalogue_store: Path,
+) -> None:
+    """The PR counts the weapons, the named ones, the swings and the icons."""
+    assert _count(catalogue_store, "SELECT count(*) FROM weapons") > 0
+    assert _count(catalogue_store, "SELECT count(*) FROM weapon_icons") > 0
+    assert (
+        _count(
+            catalogue_store,
+            "SELECT count(*) FROM weapons WHERE afterimage IS NOT NULL "
+            "AND afterimage NOT IN (SELECT afterimage FROM swings)",
+        )
+        == 0
+    )
+
+
 def test_magic_claw_takes_800_ms_and_costs_mp_at_every_level(
     catalogue_store: Path,
 ) -> None:
@@ -352,6 +397,29 @@ def test_magic_claw_takes_800_ms_and_costs_mp_at_every_level(
     assert claw.levels
     assert len(claw.levels) == claw.max_level
     assert all(level.mp_con is not None for level in claw.levels)
+
+
+def test_the_teleports_move_their_caster_and_two_are_timed_by_their_effect(
+    catalogue_store: Path,
+) -> None:
+    """
+    No Teleport plays an action (#635). The Fire/Poison and GM Teleports have
+    an effect of four 80 ms frames; the Ice/Lightning and Cleric ones have none,
+    so they have no cast time (#646, build `756a6f605a752cec`).
+    """
+    with Catalogue.latest(catalogue_store) as cat:
+        found = {
+            skill_id: (skill.actions, skill.caster_move, skill.effect_duration)
+            for skill_id in (2101001, 2201001, 2301000, 8001002)
+            for skill in [cat.skill(skill_id)]
+        }
+
+    assert found == {
+        2101001: ((), True, 320),
+        2201001: ((), True, None),
+        2301000: ((), True, None),
+        8001002: ((), True, 320),
+    }
 
 
 def test_snail_is_found_by_name_with_its_frames(catalogue_store: Path) -> None:

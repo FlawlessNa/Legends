@@ -22,7 +22,7 @@ from tests.test_maple.serving import assemble, serve
 
 
 def _buff(name: str) -> SimpleNamespace:
-    return SimpleNamespace(name=name, type="Buff", use_by_default=True, duration=60)
+    return SimpleNamespace(name=name, level=1, time=60)
 
 
 def _buff_loops() -> list[asyncio.Task]:
@@ -44,13 +44,11 @@ def test_a_pause_stops_every_buff_loop(
         monkeypatch,
         "Alice",
         buffs=SimpleNamespace(read=lambda frame, names: None),
-        character=SimpleNamespace(
-            skills={"Bless": _buff("Bless"), "Haste": _buff("Haste")}
-        ),
+        skills={"Bless": _buff("Bless"), "Haste": _buff("Haste")},
         buff_names=("Bless", "Haste"),
     )
     assemble(served, SoloRebuff)
-    rebuff = SoloRebuff(metadata, served.data, None)  # pyright: ignore[reportArgumentType]
+    rebuff = SoloRebuff(metadata, served.data, None, buffs=["Bless", "Haste"])  # pyright: ignore[reportArgumentType]
     rebuff.setup()
     casts: list[str] = []
 

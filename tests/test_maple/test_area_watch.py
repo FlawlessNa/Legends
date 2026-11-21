@@ -27,7 +27,6 @@ from maple.decision_makers import (
     CheckMobsStillSpawn,
     MobsHitting,
     Rotation,
-    TelecastMobsHitting,
     area_watch,
 )
 from maple.decision_makers.area_watch import STAND_BY_AFTER
@@ -104,10 +103,9 @@ class _Bot:
         self.rotation = object.__new__(Rotation)
         self.check = object.__new__(CheckMobsStillSpawn)
         self.hitting = object.__new__(MobsHitting)
-        self.telecast = object.__new__(TelecastMobsHitting)
         self.supervisor = Supervisor(
             "T",
-            [self.watch, self.rotation, self.check, self.hitting, self.telecast],
+            [self.watch, self.rotation, self.check, self.hitting],
             resolve_pauses([AreaWatch]),
         )
 
@@ -205,7 +203,6 @@ def test_it_stands_by_once_nothing_is_left_for_the_stand_by_time(bot: _Bot) -> N
     assert bot.paused(Rotation) == [PauseKind.USER]
     assert bot.paused(CheckMobsStillSpawn) == [PauseKind.USER]
     assert bot.paused(MobsHitting) == []
-    assert bot.paused(TelecastMobsHitting) == []
     assert bot.paused(AreaWatch) == []
 
 

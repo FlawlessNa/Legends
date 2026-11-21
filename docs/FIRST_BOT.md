@@ -42,10 +42,14 @@ Then edit it. Rename the `[YourCharacterName]` section to your character's
 **exact** in-game name, and fill in the dicts:
 
 - **`Non Skill Keys`** — jump, pet food, the menu toggles, chat toggle.
-- **`Skill Keys`** — every skill the bot will cast: your attack, your buffs,
-  teleport, door. Names must match the skill definitions for your class in
-  `maple/model/characters/` (`magicians.py`, `thiefs.py`). A skill you don't
-  list simply can't be used.
+- **`Skill Keys`** — every skill the bot will cast: your attacks, your buffs,
+  teleport, door. Names are the client's own: find one with
+  `python -m game_data search <name> --kind skill` (step 3 extracts the data).
+  A name your job doesn't have refuses the start, and names the closest. A skill
+  you don't list simply can't be used.
+- **`Equipment Menu`** (in `Non Skill Keys`) — the key that opens the equipment
+  window. If an attack plays your weapon's swings (Power Strike, Slash Blast), the
+  bot opens the window once at launch to read the weapon, and closes it.
 - **`Quick slots`** — where your potions and pet food sit in the in-game
   quick-slot bar, numbered `[1,2,3,4]` on the top row and `[5,6,7,8]` below.
 - **`Chat Keys`** (optional) - the key that opens each chat channel, for the
@@ -103,9 +107,31 @@ Open it and set, at minimum:
 - `map` — the game's name for your map from step 3
   (`"Victoria Road: Ellinia"`), its id, or `auto` to have the bot read it off
   the minimap at start
-- `training_skill` — your attack, which must be in your `Skill Keys`
-- `included_buffs` — buffs to keep up, each also in `Skill Keys`
+- `character_class` — your character's job, such as `Swordsman` or `Bishop`
+- `attacks` — your attacks, in order: each a skill from your `Skill Keys` and
+  the `min_mobs` that must be in its reach before it is cast
+- `buffs` — the buffs to keep up, each also in `Skill Keys`
 - `client_size` — `large` or `medium`, matching the client
+
+A swordsman's attacks, a multi-mob attack into groups and a single-mob attack
+otherwise:
+
+```yaml
+attacks:
+  - skill: Slash Blast
+    min_mobs: 3
+  - skill: Power Strike
+    min_mobs: 1
+```
+
+The first attack that would fire is cast, so the one needing the most mobs goes
+first. You set up no range, timing or duration: they come from the client's
+files, and a weapon attack's reach from the weapon the bot reads in game at
+launch. A one-sided attack faces the closest mob, or the larger group with
+`facing: most`. A skill's level is its maximum unless `skill_levels` gives one;
+the launch warns about each skill that depends on it. `training_skill`,
+`mob_count_threshold`, `included_buffs` and `excluded_buffs` are retired, and each
+refuses the start and names its replacement.
 
 The template documents every option inline, including the ones commented out.
 `models_path` already points at the `global` model, which detects the character
@@ -160,8 +186,13 @@ Logs land in `logs/`, one directory per Session.
 
 Once it runs at all, these are the dials worth turning, roughly in order:
 
-**It attacks too rarely or too eagerly** — `mob_count_threshold` is the minimum
-mobs on screen before the attack is worth casting.
+**It attacks too rarely or too eagerly** — each attack of `attacks` has a
+`min_mobs`: how many mobs must be in its reach before it is cast, so raise it to
+cast less and lower it to cast more. The rotation goes where the earliest attack
+fires, so a lone mob is only hunted when an attack with `min_mobs: 1` is in the
+list. A weapon attack's reach is only what every swing of the weapon reaches, so
+a mob only some swings reach is not counted: that is meant, to avoid
+swinging at air. Reach is not a profile setting, and nobody measures it.
 
 **It mistimes jumps or overshoots platforms** — set `speed_multiplier` /
 `jump_multiplier` to your character's real speed and jump stats (the ability
@@ -170,8 +201,8 @@ window shows them). What is still off after that is a Calibration constant
 (`configs/trials/`, `bot: calibration`). Don't guess these.
 
 A calibration profile is short: `ign`, `bot: calibration`, and under `settings`
-the `map`, your `character_class` (the skill table decides whether Plans may
-Teleport; `Swordsman` has none) and `trial_schedule`. It has no `models_path`,
+the `map`, your `character_class` (Plans may Teleport only when your `Skill Keys`
+name `Teleport`, which a `Swordsman` has not) and `trial_schedule`. It has no `models_path`,
 because the bot detects no mobs. It needs `configs/recordings.ini` (copy
 `recordings.example.ini`), and runs without `configs/discord.ini`. The Session
 ends when the schedule has finished. See `maple/bots/calibration.py`.
