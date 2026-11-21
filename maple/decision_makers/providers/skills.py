@@ -22,6 +22,7 @@ from maple.model.characters.maple_skills import (
     SkillCatalogue,
     SkillsRefused,
     character_skills,
+    check_skill_settings,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -81,7 +82,13 @@ class SkillsProvider(Provider):
                 f"skill_levels must map skill names to levels, got "
                 f"{self.skill_levels!r}"
             )
-        if self.catalogue is not None or not names:
+        try:
+            check_skill_settings(self.job, names, self.skill_levels)
+        except SkillsRefused as error:
+            raise StartupRefused(f"{self.data.ign}'s skills: {error}") from error
+        if not names:
+            return {}
+        if self.catalogue is not None:
             return self._build(self.catalogue, names)
         try:
             with Catalogue.latest() as catalogue:
@@ -92,21 +99,8 @@ class SkillsProvider(Provider):
             ) from error
 
     def _build(
-        self, catalogue: SkillCatalogue | None, names: tuple[str, ...]
+        self, catalogue: SkillCatalogue, names: tuple[str, ...]
     ) -> dict[str, MapleSkill]:
-        """
-        :param catalogue: None only when there are no `names`: nothing is
-            looked up, so no catalogue is opened.
-        """
-        if catalogue is None:
-            assert not names, "a catalogue is opened whenever there are names"
-            if self.skill_levels:
-                raise StartupRefused(
-                    f"{self.data.ign}'s skills: skill_levels names "
-                    f"{', '.join(map(repr, self.skill_levels))}, and the Skill Keys "
-                    "name no skill"
-                )
-            return {}
         try:
             built = character_skills(catalogue, self.job, names, self.skill_levels)
         except SkillsRefused as error:
