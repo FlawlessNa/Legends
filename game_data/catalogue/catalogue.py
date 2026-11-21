@@ -28,10 +28,11 @@ matches nothing raises `LookupError` listing the closest names
 (`difflib.get_close_matches`). Nothing is picked silently. Maps, mobs and
 skills are each looked up among their own kind.
 
-**Opening rebuilds an outdated catalogue.** When the manifest's catalogue
-schema version isn't `SCHEMA_VERSION`, or the extraction has no catalogue, it
-is rebuilt from the raw layer before it's opened, and the manifest updated.
-The client isn't needed for that.
+**Opening builds a missing catalogue.** Each schema version has its own file
+in an extraction (`catalogue_file`, such as `catalogue.v3.sqlite`). When this
+version's file isn't there, it is built from the raw layer before it's opened.
+The client isn't needed for that. Other versions' files, and the manifest, are
+left as they are, so branches at different versions share one store.
 
 A catalogue holds its file open until `close`; use it as a context manager.
 """
@@ -40,7 +41,6 @@ import difflib
 import json
 import sqlite3
 from collections.abc import Sequence
-from dataclasses import replace
 from pathlib import Path
 from types import TracebackType
 from typing import Final, Self
@@ -73,7 +73,7 @@ from .model import (
     WeaponData,
     WeaponIcon,
 )
-from .schema import CATALOGUE, SCHEMA_VERSION
+from .schema import SCHEMA_VERSION, catalogue_file
 from .trees import CatalogueError
 
 CLOSEST: Final = 5
@@ -116,20 +116,20 @@ class Catalogue:
     @classmethod
     def open(cls, build: str, root: Path = STORE) -> Catalogue:
         """
-        The catalogue of the extraction of `build`, rebuilt first if outdated.
+        The catalogue of the extraction of `build`, built first if this schema
+        version's file isn't there.
 
         :raises CatalogueError: The store has no such extraction, or its raw
             layer isn't as expected.
         """
         folder = Store(root).extraction(build)
         try:
-            manifest = Manifest.read(folder)
+            Manifest.read(folder)
         except ExtractionError as error:
             raise CatalogueError(f"{root} has no extraction {build}") from error
-        file = folder / CATALOGUE
-        if manifest.catalogue_schema_version != SCHEMA_VERSION or not file.is_file():
+        file = folder / catalogue_file(SCHEMA_VERSION)
+        if not file.is_file():
             build_from_raw(folder)
-            replace(manifest, catalogue_schema_version=SCHEMA_VERSION).write(folder)
         database = sqlite3.connect(f"{file.resolve().as_uri()}?mode=ro", uri=True)
         return cls(build, database, Store(root))
 

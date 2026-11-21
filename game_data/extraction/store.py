@@ -1,11 +1,11 @@
 """
 The store's layout, which extraction is the latest, and retention.
 
-    <root>/                              data/game_data by default
+    <root>/                              `game_data.config.STORE` by default
       extractions/<build-id>/
         manifest.json                    the Build, and how it was extracted
         raw.sqlite                       every image's tree (`extract`)
-        catalogue.sqlite                 the typed layer, once it exists
+        catalogue.v<N>.sqlite            the typed layer, one per schema version
       images/<hh>/<name>.png             every canvas's image, shared (`images`)
       blobs/<sha256>                     the client font's bytes, shared (`blobs`)
       reports/<old>__<new>.html          the patch reports, once they exist

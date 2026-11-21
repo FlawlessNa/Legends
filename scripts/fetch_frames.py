@@ -3,7 +3,9 @@ Download the frame set the screen readers are tested on.
 
 The frames are real client screenshots, which can show other players' names, so
 they live only in the private repository `legends-frames`, as the assets of one
-release per tag. This downloads a tag into `data/frames/<tag>/` (gitignored).
+release per tag. This downloads a tag into `<frames root>/<tag>/`: the frames
+root is `[Frames] Root` in `configs/game_data.ini`, else `data/frames`
+(gitignored).
 
 Usage
 -----
@@ -25,8 +27,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from game_data.config import FRAMES
+
 CURRENT = ROOT / "tests" / "frames" / "CURRENT"
-DEST = ROOT / "data" / "frames"
+DEST = FRAMES
 REPO_NAME = "legends-frames"
 LOGIN_HINT = "gh is not logged in: run `gh auth login`, then re-run this script."
 

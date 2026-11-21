@@ -1,16 +1,27 @@
 """
-`catalogue.sqlite`'s tables, and the version they're at.
+The catalogue's tables, the version they're at, and the file they're in.
 
 The schema is documented column by column in `docs/agents/game-data.md`, for
 anyone querying the file directly, and a test holds the two together. Changing
-a table bumps `SCHEMA_VERSION`, and an extraction whose catalogue is at another
-version has it rebuilt from its raw layer when it's opened.
+a table bumps `SCHEMA_VERSION`.
+
+Each version has its own file in an extraction, `catalogue.v<N>.sqlite`
+(`catalogue_file`), so branches at different versions can share one store: a
+branch opens or builds only its own version's file, and leaves the others,
+and the unversioned `catalogue.sqlite` of older stores, in place.
 """
 
 from typing import Final
 
 SCHEMA_VERSION: Final = 5
-CATALOGUE: Final = "catalogue.sqlite"
+
+
+def catalogue_file(version: int) -> str:
+    """The name of the catalogue file at schema version `version`."""
+    return f"catalogue.v{version}.sqlite"
+
+
+CATALOGUE: Final = catalogue_file(SCHEMA_VERSION)
 
 TABLES: Final = (
     """CREATE TABLE strings (

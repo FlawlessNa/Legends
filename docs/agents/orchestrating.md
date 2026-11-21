@@ -40,6 +40,15 @@ hc run --bg --name tk<n> --cwd <abs path of that worktree> claude --model <sonne
 
 The fetch makes the base include every ticket merged so far. The worktree is a
 sibling of the repo (`../Legends-worktrees/`), and the branch tracks the epic.
+
+Then copy the repo's `configs/game_data.ini` and `configs/keybindings.ini` into
+the worktree's `configs/`, **never the data**. `game_data.ini` sets
+`[Store] Root` and `[Frames] Root` to the main checkout's `data/game_data` and
+`data/frames`, so the agent reads them in place: each catalogue schema version
+has its own file, so branches at different versions share the store
+(`game-data.md`, "One store for every worktree"). Glyphs (`data/glyphs`) stay
+per worktree. Agents never run `python -m game_data extract` against the shared
+store: extracting stays the maintainer's or the orchestrator's job.
 Put the brief in `run` itself: a `send` to a booting agent can be dropped.
 Check `first_message.sent` in the result, and if it is false read the screen
 (`hc read tk<n>`) before resending. Never start a ticket agent without `--bg`,

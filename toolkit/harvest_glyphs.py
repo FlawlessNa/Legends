@@ -57,6 +57,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from botting.screen import find_mask_glyphs
+from game_data.config import FRAMES
 from maple.screen.font import (
     CHAT_GENERAL,
     COUNTDOWN,
@@ -69,7 +70,7 @@ from maple.screen.font import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
-FRAMES_ROOT = REPO / "data" / "frames"
+FRAMES_ROOT = FRAMES
 SOURCES = REPO / "toolkit" / "glyph_sources"
 CURRENT = REPO / "tests" / "frames" / "CURRENT"
 ARIAL = Path("C:/Windows/Fonts/arial.ttf")
