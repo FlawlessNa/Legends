@@ -17,6 +17,7 @@ whose client adds them to this one.
 """
 
 import dataclasses
+import importlib
 import json
 import shutil
 import sqlite3
@@ -45,9 +46,13 @@ from game_data.catalogue import (
     Spawn,
     build,
     build_catalogue,
+    catalogue_file,
 )
 from game_data.extraction import Manifest, extract
 from tests.test_game_data import wz_writer as w
+
+# The module, which the package's `build` function shadows as an attribute.
+build_module = importlib.import_module("game_data.catalogue.build")
 
 HENESYS = 100
 NO_MAP = 999999999
@@ -511,26 +516,120 @@ def test_the_catalogue_builds_from_the_raw_layer_with_no_client(
         found = cat.map("Henesys")
 
     assert found.id == HENESYS
-    assert Manifest.read(folder).catalogue_schema_version == SCHEMA_VERSION
     assert (folder / CATALOGUE).is_file()
+    assert Manifest.read(folder).catalogue_schema_version is None
 
 
-def test_bumping_the_schema_version_rebuilds_the_catalogue_when_opened(
-    extracted: str, root: Path, monkeypatch: pytest.MonkeyPatch
+def _at_version(monkeypatch: pytest.MonkeyPatch, version: int) -> None:
+    """This process opens and builds catalogues as a branch at `version` would."""
+    monkeypatch.setattr("game_data.catalogue.catalogue.SCHEMA_VERSION", version)
+    monkeypatch.setattr(build_module, "SCHEMA_VERSION", version)
+
+
+def test_each_schema_version_has_its_own_catalogue_file() -> None:
+    assert catalogue_file(4) == "catalogue.v4.sqlite"
+    assert catalogue_file(4) != catalogue_file(5)
+    assert catalogue_file(SCHEMA_VERSION) == CATALOGUE
+
+
+def test_two_schema_versions_catalogues_sit_side_by_side_in_one_extraction(
+    extracted: str, root: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
 ) -> None:
+    """A branch at the next version builds its own file and touches nothing else."""
     folder = root / "extractions" / extracted
-    with closing(sqlite3.connect(folder / CATALOGUE)) as database:
-        database.execute("DELETE FROM maps")
-        database.commit()
-    monkeypatch.setattr(
-        "game_data.catalogue.catalogue.SCHEMA_VERSION", SCHEMA_VERSION + 1
-    )
+    current = (folder / CATALOGUE).read_bytes()
+    manifest = (folder / "manifest.json").read_bytes()
+    _at_version(monkeypatch, SCHEMA_VERSION + 1)
 
     with Catalogue.open(extracted, root) as cat:
-        found = cat.map(HENESYS)
+        assert cat.map(HENESYS).name == "Henesys"
 
-    assert found.name == "Henesys"
-    assert Manifest.read(folder).catalogue_schema_version == SCHEMA_VERSION + 1
+    newer = folder / catalogue_file(SCHEMA_VERSION + 1)
+    assert rows(root, extracted, "PRAGMA user_version") == [(SCHEMA_VERSION,)]
+    with closing(sqlite3.connect(newer)) as database:
+        assert database.execute("PRAGMA user_version").fetchall() == [
+            (SCHEMA_VERSION + 1,)
+        ]
+    assert (folder / CATALOGUE).read_bytes() == current
+    assert (folder / "manifest.json").read_bytes() == manifest
+
+    monkeypatch.undo()
+    rebuild = mocker.patch("game_data.catalogue.catalogue.build_from_raw")
+    with Catalogue.open(extracted, root) as cat:
+        assert cat.map(HENESYS).name == "Henesys"
+    rebuild.assert_not_called()
+    assert newer.is_file()
+
+
+def test_a_catalogue_opens_while_another_version_builds(
+    extracted: str, root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Midway through a build at the next version, this version's catalogue opens
+    and reads, and the next version's file isn't there to be opened half-built.
+    """
+    folder = root / "extractions" / extracted
+    newer = folder / catalogue_file(SCHEMA_VERSION + 1)
+    seen: list[tuple[str | None, bool, list[str]]] = []
+    real_write = build_module._write
+
+    def write_then_read(raw: object, catalogue: sqlite3.Connection) -> None:
+        real_write(raw, catalogue)
+        with Catalogue.open(extracted, root) as cat:
+            seen.append(
+                (
+                    cat.map(HENESYS).name,
+                    newer.exists(),
+                    sorted(f.name for f in folder.iterdir() if f.name.endswith(".tmp")),
+                )
+            )
+
+    monkeypatch.setattr(build_module, "SCHEMA_VERSION", SCHEMA_VERSION + 1)
+    monkeypatch.setattr(build_module, "_write", write_then_read)
+
+    build(folder)
+
+    ((name, newer_existed, temporary),) = seen
+    assert name == "Henesys"
+    assert not newer_existed
+    assert len(temporary) == 1
+    assert temporary[0].startswith(f".{newer.name}.")
+    assert newer.is_file()
+    assert not [f for f in folder.iterdir() if f.name.endswith(".tmp")]
+
+
+def test_building_a_version_whose_file_is_open_keeps_the_open_one(
+    extracted: str, root: Path
+) -> None:
+    """
+    Two processes that build one version at once: the second to finish finds
+    the first's file open by a reader (on Windows it can't be replaced), and
+    neither fails.
+    """
+    folder = root / "extractions" / extracted
+
+    with Catalogue.open(extracted, root) as cat:
+        build(folder)
+        assert cat.map(HENESYS).name == "Henesys"
+
+    assert (folder / CATALOGUE).is_file()
+    assert not [f for f in folder.iterdir() if f.name.endswith(".tmp")]
+
+
+def test_an_old_unversioned_catalogue_is_ignored_and_left_in_place(
+    client: Path, root: Path
+) -> None:
+    """A store from before per-version files keeps working, without re-extracting."""
+    build_id = extract(client, root).manifest.build
+    folder = root / "extractions" / build_id
+    old = folder / "catalogue.sqlite"
+    old.write_bytes(b"not a catalogue")
+
+    with Catalogue.open(build_id, root) as cat:
+        assert cat.map(HENESYS).name == "Henesys"
+
+    assert old.read_bytes() == b"not a catalogue"
+    assert (folder / CATALOGUE).is_file()
 
 
 def test_a_current_catalogue_opens_without_being_rebuilt(
@@ -920,11 +1019,11 @@ DOC = Path(__file__).resolve().parents[2] / "docs" / "agents" / "game-data.md"
 def documented_tables() -> dict[str, list[str]]:
     """
     The tables and columns `docs/agents/game-data.md` lists under
-    `### catalogue.sqlite`: each a `#### \\`table\\`` heading, then a table whose
+    `### catalogue.v<N>.sqlite`: each a `#### \\`table\\`` heading, then a table whose
     first column names each column.
     """
     text = DOC.read_text(encoding="utf-8")
-    section = text.split("### `catalogue.sqlite`", 1)[1].split("\n### ", 1)[0]
+    section = text.split("### `catalogue.v<N>.sqlite`", 1)[1].split("\n### ", 1)[0]
     tables: dict[str, list[str]] = {}
     current: list[str] | None = None
     for line in section.splitlines():

@@ -28,9 +28,27 @@ its client area is entirely on the primary monitor. A copy that is not trusted
 is asked for again for up to a second (a new process's first copy can come back
 empty), then they exit 6 with the reason, and write nothing. They bring the
 client to the front first, by asking Windows for the foreground window: no key,
-no click, no `release_all`, no ledger reset. If Windows refuses, they exit 6
-with that reason. `--no-front` skips it and copies only if the client is already
-in front, for whoever needs the window left alone.
+no click, no `release_all`, no ledger reset. `--no-front` skips it and copies
+only if the client is already in front, for whoever needs the window left alone.
+
+Bringing it forward (`botting/screen/_win32.py` `request_foreground`) restores
+the client if it is minimised, attaches to the input queue of the window in
+front (`AttachThreadInput`), then calls `BringWindowToTop` and
+`SetForegroundWindow`. Each call is tried even when an earlier one is refused,
+so it works from a terminal that is not in front, with another window over the
+client, as long as Windows lets it. It never sends the Alt key or any other
+input to get past the foreground lock; the input commands' `activate` does, and
+that is part of what they send. When the client stays behind, they exit 6 with
+the calls Windows refused, the program in front, and what to do:
+
+| The message says                       | Why                                                                                   | What to do                                              |
+| -------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `Run this terminal as administrator`   | The terminal is not elevated and the client is: Windows refuses `BringWindowToTop` (UIPI), and very likely `SetForegroundWindow` too | Ask the maintainer to run the terminal as administrator |
+| `The session is locked`                | `LockApp.exe` (the lock screen) is in front: nothing goes over it, and attaching to it is refused even from an elevated terminal | Ask the maintainer to unlock the session                |
+| `the foreground lock held`             | Windows refused `AttachThreadInput` to the window in front (a protected or packaged app, for instance), so `SetForegroundWindow` met the foreground lock | Ask the maintainer to bring the client forward          |
+| `accepted every call but left … behind` | Windows may refuse a foreground change even when every call goes through              | Ask the maintainer to bring the client forward          |
+
+In every one of these cases the probe still needs the maintainer.
 
 ### Elevation
 

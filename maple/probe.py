@@ -14,7 +14,11 @@ no key and no click, so no `release_all` and no ledger reset; ``--no-front`` ski
 it), then capture through `FrameSource` (Desktop Duplication), which copies what is
 on screen: a frame that isn't the client's own pixels (the client not in front,
 covered, moved) is refused with its reason, and no PNG is written. When Windows
-refuses to bring the client forward, the command exits 6 with that reason.
+refuses to bring the client forward, the command exits 6 with the calls it refused,
+the program in front, and what to do (run the terminal as administrator, unlock the
+session, or bring the client forward by hand): see `bring_to_front`. Unlike the
+input commands' `activate`, this path never sends the Alt key to get past the
+foreground lock.
 
 ``press``, ``hold``, ``write`` and ``click`` are each one complete gesture, run by
 `run_guarded` (ADR 0002): validate everything first, so a refusal sends nothing; bring
@@ -330,8 +334,7 @@ def front(handle: int) -> None:
     if problem is not None:
         raise ProbeError(
             EXIT_FRAME_NOT_OK,
-            f"Could not bring the client to the front: {problem}. Nothing was "
-            "written. Bring it to the front, uncovered, and try again.",
+            f"Could not bring the client to the front. {problem} Nothing was written.",
         )
 
 

@@ -54,7 +54,7 @@ from .model import (
     WeaponData,
     WeaponIcon,
 )
-from .schema import CATALOGUE, SCHEMA_VERSION
+from .schema import CATALOGUE, SCHEMA_VERSION, catalogue_file
 from .trees import CatalogueError
 
 __all__ = [
@@ -86,4 +86,5 @@ __all__ = [
     "WeaponIcon",
     "build",
     "build_catalogue",
+    "catalogue_file",
 ]

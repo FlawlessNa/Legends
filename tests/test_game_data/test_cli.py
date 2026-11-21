@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from game_data.catalogue import SCHEMA_VERSION
+from game_data.catalogue import CATALOGUE, SCHEMA_VERSION
 from game_data.cli import main
 from game_data.config import ClientPathNotSet
 from game_data.extraction import Manifest
@@ -147,7 +147,7 @@ def test_extract_builds_the_catalogue_and_says_so(
     )
     (folder,) = (root / "extractions").iterdir()
     assert Manifest.read(folder).catalogue_schema_version == SCHEMA_VERSION
-    assert (folder / "catalogue.sqlite").is_file()
+    assert (folder / CATALOGUE).is_file()
 
 
 def test_show_map_prints_a_map_found_by_name_as_json(
