@@ -301,6 +301,50 @@ def test_no_skill_keys_build_no_skills_and_open_no_catalogue(
     assert data.read(SKILLS) == {}
 
 
+@pytest.mark.parametrize("injected", [False, True], ids=["bot", "injected"])
+@pytest.mark.parametrize(
+    ("job", "levels", "refusal"),
+    [
+        (
+            "Swordsman",
+            {"Rage": 3},
+            (
+                r"Hero's skills: skill_levels names 'Rage', which the Skill Keys "
+                r"don't: they name none"
+            ),
+        ),
+        ("Nobody", None, r"Hero's skills: no job id for 'Nobody'"),
+        ("Swordsman", None, None),
+    ],
+    ids=["levels-set", "unknown-job", "neither"],
+)
+def test_no_skill_keys_are_checked_the_same_with_or_without_a_catalogue(
+    monkeypatch: pytest.MonkeyPatch,
+    injected: bool,
+    job: str,
+    levels: dict[str, object] | None,
+    refusal: str | None,
+) -> None:
+    def no_section(ign: str) -> dict[str, str]:
+        raise KeyError(ign)
+
+    monkeypatch.setattr(skills_module, "skill_keys", no_section)
+    monkeypatch.setattr(
+        skills_module.Catalogue, "latest", lambda: pytest.fail("opened")
+    )
+    data = BotData("Hero")
+    settings = {"skill_levels": levels} if levels else {}
+    providers = Providers(data, None, None, settings)  # pyright: ignore[reportArgumentType] - nothing is sent
+    extra = {"catalogue": CATALOGUE} if injected else {}
+
+    if refusal is None:
+        providers.add(SkillsProvider, job=job, **extra)
+        assert data.read(SKILLS) == {}
+    else:
+        with pytest.raises(StartupRefused, match=refusal):
+            providers.add(SkillsProvider, job=job, **extra)
+
+
 # --- the jobs ------------------------------------------------------------------
 
 

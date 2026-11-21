@@ -125,6 +125,30 @@ class CharacterSkills:
     unsure_levels: tuple[str, ...]
 
 
+def check_skill_settings(
+    job: str, names: Iterable[str], levels: Mapping[str, object] | None
+) -> frozenset[int]:
+    """
+    The settings checks `character_skills` runs before it looks anything up,
+    which need no catalogue: so a Bot with no `names` is refused the same way.
+
+    :return: The ids of `job`'s line.
+    :raises SkillsRefused: `levels` names a skill `names` doesn't, or `job`
+        has no line.
+    """
+    names = tuple(names)
+    unknown = [name for name in levels or {} if name not in names]
+    if unknown:
+        raise SkillsRefused(
+            f"skill_levels names {', '.join(map(repr, unknown))}, which the "
+            f"Skill Keys don't: they name {', '.join(map(repr, names)) or 'none'}"
+        )
+    try:
+        return job_line(job)
+    except LookupError as error:
+        raise SkillsRefused(str(error)) from error
+
+
 def character_skills(
     catalogue: SkillCatalogue,
     job: str,
@@ -145,16 +169,7 @@ def character_skills(
     """
     names = tuple(names)
     levels = dict(levels or {})
-    unknown = [name for name in levels if name not in names]
-    if unknown:
-        raise SkillsRefused(
-            f"skill_levels names {', '.join(map(repr, unknown))}, which the "
-            f"Skill Keys don't: they name {', '.join(map(repr, names)) or 'none'}"
-        )
-    try:
-        line = job_line(job)
-    except LookupError as error:
-        raise SkillsRefused(str(error)) from error
+    line = check_skill_settings(job, names, levels)
     skills: dict[str, MapleSkill] = {}
     unsure: list[str] = []
     for name in names:
