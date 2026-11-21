@@ -23,6 +23,10 @@ catalogue's tables included, for anyone reading it directly.
 Any command's `--client PATH` overrides the file. With neither, the command
 fails, naming the file to create.
 
+The same file can say where the store is, `[Store] Root`, and where the frame
+sets are, `[Frames] Root`. Both are optional: see "One store for every
+worktree".
+
 ## Commands
 
 ```
@@ -34,9 +38,11 @@ python -m game_data search TEXT [--kind map|mob|skill] [--root PATH]
 python -m game_data render MAP [--overlays] [--hitboxes] [--scale S] [--out PATH] [--root PATH]
 ```
 
-`--root` is the store, `data/game_data` by default (gitignored, like all of
-`data/`). A relative `--root` is taken from the current directory. Everything
-`game_data` writes goes under it.
+`--root` is the store. Without it, the store is `[Store] Root` in
+`configs/game_data.ini`, else `data/game_data` (gitignored, like all of
+`data/`); `game_data.config.store_root` holds that rule, and `STORE` is its
+answer. A relative `--root` is taken from the current directory, a relative
+`[Store] Root` from the repo root. Everything `game_data` writes goes under it.
 
 - **`extract`** extracts the installed client into the store, and builds its
   catalogue. After a patch, running it again is the whole update. It prints
@@ -120,8 +126,8 @@ with Catalogue.latest() as cat:           # or Catalogue.open(build_id, root=...
     cat.damage_digits()                    # tuple[DamageDigit, ...]
 ```
 
-`latest` and `open` take the store root (`root=`, `data/game_data` by
-default). Every lookup returns frozen dataclasses (`game_data.catalogue.model`)
+`latest` and `open` take the store root (`root=`, `STORE` by default: see
+"Commands"). Every lookup returns frozen dataclasses (`game_data.catalogue.model`)
 in virtual coordinates. A catalogue holds its file open until it's closed, so
 use it in a `with`.
 
@@ -403,7 +409,7 @@ data/game_data/
   extractions/<build-id>/
     manifest.json          the Build, and how it was extracted
     raw.sqlite             every image's tree, losslessly
-    catalogue.sqlite       the typed layer, built from raw.sqlite
+    catalogue.v<N>.sqlite  the typed layer at schema version N, built from raw.sqlite
   images/<hh>/<name>.png   every canvas's pixels, shared by all extractions
   blobs/<sha256>           the client font's bytes, shared by all extractions
   reports/<old>__<new>.html  the patch reports
@@ -434,13 +440,41 @@ An **Extraction** is one Build's extracted data: one folder under
   extraction no longer kept.
 - Only one `extract` may run on a store at a time.
 
+### One store for every worktree
+
+A ticket worktree uses the main checkout's store in place: no copy, no link.
+Its `configs/game_data.ini` (copied in, see `orchestrating.md`) sets
+`[Store] Root` to the main checkout's `data/game_data`, and `[Frames] Root` to
+its `data/frames`.
+
+Branches at different catalogue schema versions share the store because **each
+version has its own catalogue file** in an extraction, `catalogue.v<N>.sqlite`
+(`game_data.catalogue.catalogue_file`). A branch at version N opens only its
+own file, and builds it from `raw.sqlite` when it isn't there. The build
+writes a hidden temporary file beside it, unique to that build, and renames it
+into place when it's complete, so a reader never opens a half-built catalogue.
+Other versions' files are never touched, nor is the manifest. When two
+processes build the same version at once, the first to finish wins and the
+other's copy is dropped. Older files, the unversioned `catalogue.sqlite` of a
+store from before per-version files included, stay until retention deletes
+their extraction; nothing reads them.
+
+What isn't shared:
+
+- **Extracting.** Agents never run `python -m game_data extract` against the
+  shared store: it writes the raw layer and images every branch reads, and only
+  one may run at a time. Extracting stays the maintainer's or the
+  orchestrator's job. Tests build their own stores.
+- **Glyphs** (`data/glyphs`, a few hundred KB) stay per worktree, since a
+  ticket may harvest new ones (`testing.md`).
+
 ### `manifest.json`
 
 | key                        | what                                                              |
 | -------------------------- | ----------------------------------------------------------------- |
 | `build`                    | the build id                                                      |
 | `extractor_version`        | the version of the code that wrote `raw.sqlite`                   |
-| `catalogue_schema_version` | the catalogue's schema version, `null` if none was built          |
+| `catalogue_schema_version` | the schema version `extract` built a catalogue at, `null` if none |
 | `extracted_at`             | when it was last extracted, ISO 8601 in UTC                       |
 | `archives`                 | by path from `Data`: `size`, `mtime_ns`, `sha256`                 |
 | `images`, `canvases`       | how many images `raw.sqlite` holds, and how many canvases in them |
@@ -501,15 +535,15 @@ An object is a sub-property exactly when it has no `$type` key. No node in the
 client is named `$type`, and no canvas has a child named `image`, `w` or `h`.
 If one ever does, extraction stops rather than store something ambiguous.
 
-### `catalogue.sqlite`
+### `catalogue.v<N>.sqlite`
 
-The typed layer: one row per map, foothold, rope, portal, spawn and layer
+The typed layer, at schema version N: one row per map, foothold, rope, portal, spawn and layer
 item, mob and mob frame, skill and skill level, character action frame, item
 icon, meso frame and damage digit, read from `raw.sqlite` and nothing else. Code reads it through
 `Catalogue` ("Looking things up"); anyone may query it directly with any
 SQLite tool. Its tables and columns are stable within a schema version, the
-`catalogue_schema_version` in the manifest (and the file's `user_version`).
-Changing them bumps the version. A test holds this list and the schema
+N in its name (and the file's `user_version`). Changing them bumps the
+version, and so the file's name. A test holds this list and the schema
 together.
 
 Everything is in **virtual coordinates**, the map's own. An ID is an integer,

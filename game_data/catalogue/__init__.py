@@ -48,7 +48,7 @@ from .model import (
     SkillLevel,
     Spawn,
 )
-from .schema import CATALOGUE, SCHEMA_VERSION
+from .schema import CATALOGUE, SCHEMA_VERSION, catalogue_file
 from .trees import CatalogueError
 
 __all__ = [
@@ -77,4 +77,5 @@ __all__ = [
     "Spawn",
     "build",
     "build_catalogue",
+    "catalogue_file",
 ]
