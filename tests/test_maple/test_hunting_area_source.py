@@ -357,6 +357,33 @@ def test_on_arrival_where_too_few_mobs_are_left_it_picks_again(scene: Any) -> No
     assert found.arrivals() == 1
 
 
+def test_a_mob_is_reached_by_one_client_px_at_the_frames_scale(
+    scene: Any,  # noqa: ANN401
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def pick(right_mob_left: int) -> str:
+        """
+        Why the first pick is made, on a play area half the client's: 2 client
+        px per virtual px, so one client px of overlap is half a virtual px.
+        Client x 0 is virtual 0, and client y 300 is virtual 0.
+
+        One mob stands at virtual 200 (195 to 205), and one's box starts at
+        client `right_mob_left`. The fixture attack, 2 mobs, reaches 100
+        virtual px from the feet: from 200, to virtual 300, client 600.
+        """
+        found = scene(camera=Camera(0, -150, 1.0, 2.0, (500, 300)))
+        boxes = [(390, 260, 410, 300), (right_mob_left, 260, right_mob_left + 40, 300)]
+        monkeypatch.setattr(module, "get_mobs_positions_in_img", lambda *_: boxes)
+        found.next()
+        return found.picked()[-1]["why"]
+
+    # Client 599: one client px, half a virtual px, of overlap. Both are
+    # reached from 200, and the attack fires there.
+    assert pick(599) == "mobs"
+    # Client 600: touching, no overlap. Nothing fires.
+    assert pick(600) == "look_around"
+
+
 # --- with no Camera ------------------------------------------------------------------
 
 
@@ -543,6 +570,10 @@ def test_over_a_long_run_every_destination_is_on_a_stretch_unless_crowded_out(
 # --- the plain functions -------------------------------------------------------------------
 
 
+#: Virtual px are client px: one client px of overlap is one virtual px.
+ONE = (1.0, 1.0)
+
+
 def box(x: float, y: float = 0.0, half: float = 30.0, height: float = 40.0) -> Any:  # noqa: ANN401
     """A mob's box in virtual px, standing at `x`, `y`: `half` each side, `height` tall."""
     return (x - half, y - height, x + half, y)
@@ -560,7 +591,7 @@ def test_a_cast_reaches_the_mobs_whose_box_overlaps_its_box_from_the_feet() -> N
     inside = [box(100.0, half=5.0), box(-100.0, half=5.0), box(0.0, -100.0 + 20.0)]
     outside = [box(106.0, half=5.0), box(-106.0, half=5.0), box(0.0, 50.0 + 100.0)]
 
-    assert reaches((0.0, 0.0), inside + outside, reach) == 3
+    assert reaches((0.0, 0.0), inside + outside, reach, scale=ONE) == 3
 
 
 def test_with_every_mobs_feet_at_the_spots_height_a_box_spanning_the_chest_band_is_reached() -> (
@@ -571,8 +602,8 @@ def test_with_every_mobs_feet_at_the_spots_height_a_box_spanning_the_chest_band_
     # the feet reaches nothing, and the box does.
     assert reach.lt_y < 0
     assert reach.rb_y < 0
-    assert reaches((0.0, 0.0), [box(-50.0)], reach) == 1
-    assert reaches((0.0, 0.0), [box(-50.0, height=5.0)], reach) == 0
+    assert reaches((0.0, 0.0), [box(-50.0)], reach, scale=ONE) == 1
+    assert reaches((0.0, 0.0), [box(-50.0, height=5.0)], reach, scale=ONE) == 0
 
 
 def test_a_one_sided_reach_counts_the_mobs_of_the_larger_side() -> None:
@@ -581,18 +612,18 @@ def test_a_one_sided_reach_counts_the_mobs_of_the_larger_side() -> None:
     left = [box(-50.0)]
     right = [box(50.0), box(60.0)]
 
-    assert reaches((0.0, 0.0), left, reach) == 1
-    assert reaches((0.0, 0.0), right, reach) == 2
+    assert reaches((0.0, 0.0), left, reach, scale=ONE) == 1
+    assert reaches((0.0, 0.0), right, reach, scale=ONE) == 2
     # One on one side and two on the other: not summed.
-    assert reaches((0.0, 0.0), left + right, reach) == 2
+    assert reaches((0.0, 0.0), left + right, reach, scale=ONE) == 2
 
 
 def test_an_attack_fires_where_it_reaches_its_min_mobs() -> None:
     mobs = [box(300.0), box(330.0), box(360.0)]
 
-    assert fires((300.0, 0.0), mobs, SWORDSMAN) == (0, 3)
-    assert fires((300.0, 0.0), mobs[:2], SWORDSMAN) == (1, 2)
-    assert fires((0.0, 0.0), mobs, SWORDSMAN) is None
+    assert fires((300.0, 0.0), mobs, SWORDSMAN, scale=ONE) == (0, 3)
+    assert fires((300.0, 0.0), mobs[:2], SWORDSMAN, scale=ONE) == (1, 2)
+    assert fires((0.0, 0.0), mobs, SWORDSMAN, scale=ONE) is None
 
 
 def test_the_best_spot_is_on_a_stretch_nearest_a_mob() -> None:
@@ -600,10 +631,10 @@ def test_the_best_spot_is_on_a_stretch_nearest_a_mob() -> None:
     assert flat.platform is FLAT
 
     # A mob beside the stretch's end: the spot is the end.
-    found = best_spot((flat,), [box(1050.0)], (attack(1),), here=None)
+    found = best_spot((flat,), [box(1050.0)], (attack(1),), here=None, scale=ONE)
 
     assert found == ((1000.0, 0.0), 1)
-    assert best_spot((flat,), [], (attack(1),), here=None) is None
+    assert best_spot((flat,), [], (attack(1),), here=None, scale=ONE) is None
     assert HIGH in {s.platform for s in STRETCHES}
 
 
@@ -616,7 +647,7 @@ def test_the_best_spot_prefers_where_slash_blast_fires_over_where_only_power_str
 
     # The lone mob's spot is the nearest to the character, and a mob there is
     # reached by Power Strike alone.
-    found = best_spot((flat,), group + lone, SWORDSMAN, here=(620.0, 0.0))
+    found = best_spot((flat,), group + lone, SWORDSMAN, here=(620.0, 0.0), scale=ONE)
 
     # From 300 or 360 a cast reaches all three: 360 is the nearer to 620.
     assert found == ((360.0, 0.0), 3)
@@ -625,7 +656,7 @@ def test_the_best_spot_prefers_where_slash_blast_fires_over_where_only_power_str
 def test_the_best_spot_still_picks_a_lone_mob_when_no_group_exists() -> None:
     flat = STRETCHES[0]
 
-    found = best_spot((flat,), [box(600.0)], SWORDSMAN, here=(100.0, 0.0))
+    found = best_spot((flat,), [box(600.0)], SWORDSMAN, here=(100.0, 0.0), scale=ONE)
 
     assert found == ((600.0, 0.0), 1)
 
@@ -633,7 +664,7 @@ def test_the_best_spot_still_picks_a_lone_mob_when_no_group_exists() -> None:
 def test_a_spot_no_attack_fires_at_is_not_picked() -> None:
     flat = STRETCHES[0]
 
-    assert best_spot((flat,), [box(600.0)], (attack(2),), here=None) is None
+    assert best_spot((flat,), [box(600.0)], (attack(2),), here=None, scale=ONE) is None
 
 
 def test_of_two_spots_where_the_same_attack_fires_the_one_reaching_more_wins() -> None:
@@ -641,7 +672,7 @@ def test_of_two_spots_where_the_same_attack_fires_the_one_reaching_more_wins() -
     # Power Strike only: 2 mobs reached at 300, 1 at 600.
     mobs = [box(300.0), box(330.0), box(600.0)]
 
-    found = best_spot((flat,), mobs, (POWER_STRIKE_1,), here=(620.0, 0.0))
+    found = best_spot((flat,), mobs, (POWER_STRIKE_1,), here=(620.0, 0.0), scale=ONE)
 
     assert found is not None
     assert found[1] == 2

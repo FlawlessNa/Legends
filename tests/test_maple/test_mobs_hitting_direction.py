@@ -8,8 +8,9 @@ skill reached (#51). It is now chosen among the sides where the attack fires:
 centre, `most` by how many mobs a side counts.
 """
 
-from maple.decision_makers.attack_choice import Placement, choose, counted, overlaps
+from maple.decision_makers.attack_choice import choose
 from maple.decision_makers.providers import Attack, Facing
+from maple.model.characters.placed_reach import Placement, counted
 from maple.model.characters.reach import Reach
 
 #: Feet at (100, 300), 1:1, no chat in the way.
@@ -26,13 +27,13 @@ def mob(center_x: int) -> tuple[int, int, int, int]:
 
 
 def test_a_one_sided_reach_is_counted_facing_left_and_facing_right() -> None:
-    found = counted(SWING, [mob(50), mob(30), mob(150)], WHERE)
+    found = counted(SWING.reach, [mob(50), mob(30), mob(150)], WHERE)
 
     assert found == {"left": (mob(50), mob(30)), "right": (mob(150),)}
 
 
 def test_a_two_sided_reach_is_counted_once() -> None:
-    found = counted(AROUND, [mob(50), mob(150)], WHERE)
+    found = counted(AROUND.reach, [mob(50), mob(150)], WHERE)
 
     assert found == {None: (mob(50), mob(150))}
 
@@ -86,12 +87,3 @@ def test_a_two_sided_attack_faces_nothing() -> None:
 
 def test_no_attack_fires_without_a_mob_in_reach() -> None:
     assert choose([SWING, AROUND], [mob(500)], WHERE, Facing.CLOSEST) is None
-
-
-def test_a_box_overlaps_by_a_whole_pixel_on_each_axis() -> None:
-    reach = (10.0, 10.0, 20.0, 20.0)
-
-    assert overlaps((0, 0, 11, 11), reach)
-    assert not overlaps((0, 0, 10, 11), reach)
-    assert not overlaps((0, 0, 11, 10), reach)
-    assert not overlaps((0, 0, 10.5, 15), reach)  # pyright: ignore[reportArgumentType] - half a pixel

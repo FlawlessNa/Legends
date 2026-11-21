@@ -18,6 +18,7 @@ from botting.core import (
     action_name,
 )
 from maple.actions.skills_related_v2 import cast_skill_compiler
+from maple.model.characters.placed_reach import Placement
 from maple.screen.chat import CHAT, ChatReader
 from maple.screen.minimap import MINIMAP
 from maple.screen.name_tag import NAME_TAGS
@@ -31,7 +32,7 @@ from maple.telemetry_events import (
     PartialReachPayload,
 )
 
-from .attack_choice import ClientBox, Placement, choose, partial, placement
+from .attack_choice import ClientBox, choose, partial
 from .mob_detection import get_mobs_positions_in_img
 from .providers import (
     ATTACKS,
@@ -235,7 +236,9 @@ class MobsHitting(DecisionMaker):
                     client_size,
                 )
             return None
-        return placement(on_screen_pos, client_size, play_area, self._chat_top())
+        return Placement.on_screen(
+            on_screen_pos, client_size, play_area, self._chat_top()
+        )
 
     def _report_partial(
         self,
