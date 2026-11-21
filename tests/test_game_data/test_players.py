@@ -1,5 +1,6 @@
 """
-`game_data.scenes.players`: a character composed from a synthetic client.
+`game_data.scenes.players`: characters drawn and composed from a synthetic
+client.
 
 `write_players_client` writes a client whose parts are blocks of one colour
 each, so where a colour lands says where its part was anchored. In the feet's
@@ -9,19 +10,38 @@ coordinates (the body's origin at `(0, 0)`):
 - the arm hangs from the `navel` and gives `hand` at `(4, -1)`, which the
   weapon hangs from: anchors found through another part;
 - the head hangs from the `neck` and gives `brow` at `(0, -8)`, which the
-  face, the hair and the cap hang from;
+  face, the hair, the cap and the face accessory hang from;
 - the coat's `mail` covers the body's middle and the arm's left column:
   `mailChest` is in front of `body` in `Base/zmap.img`, and behind `arm`,
   though the arm is read before it;
 - the cap's `vslot` is `CpH1`, and the hair's `hairOverHead` is `H1` in
-  `Base/smap.img`, so the cap hides it;
-- the hair's `hairShade` has one canvas per skin, `0` and `1`; skin `1`'s
+  `Base/smap.img`, so the cap hides it. The hood's `vslot` also covers the
+  head's `Hd`, so it hides the head, whose `brow` the face still hangs from;
+- the hair's `hairShade` has one canvas per skin, `0` and `1`; every skin's
   body and head are skin `0`'s.
+
+The body has every pose of `PLAYER_ACTIONS`, one frame each linking to
+`stand1/0`, but `walk1`, which has two, and `ladder` and `rope`, whose frame
+is the body alone with the face hidden (`face` 0). Every piece but the face
+and the face accessory has every pose, frame `0` only, linking to its
+`stand1/0`, with these gaps:
+
+- the weapons and the shield have no `ladder` or `rope` (`UNSEEN`);
+- the overall (`Longcoat`, `islot` `MaPn`) has no `alert`;
+- the face accessory has only a `default`;
+- the odd cap's part has a `z` that `Base/zmap.img` lacks;
+- the cash weapon holds its frames under types `30` (`hand` at `(-2, 0)`,
+  like the regular weapon) and `40` (`hand` at `(-3, 0)`), and `49`, a type
+  no player wields; the broken cash weapon only under `49`;
+- weapon `1392000` is of type 39, which no player wields.
+
+`Character/Cap/_Canvas/` holds a cap, which isn't a piece.
 
 `UI/NameTag.img` has one style, `3`: red west, green centre and blue east
 pieces, black text.
 """
 
+import logging
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
@@ -32,16 +52,24 @@ import pytest
 from game_data.catalogue import Catalogue, CatalogueError, build_catalogue
 from game_data.extraction import extract
 from game_data.scenes.players import (
-    PIECES,
+    MOVES,
+    PLAYER_ACTIONS,
     SLOTS,
     TAG_BACKGROUND,
     TAG_GAP,
     TAG_HEIGHT,
+    WEAPON_TYPES,
+    Look,
+    MissingFrame,
     Outfit,
     Part,
+    PartError,
     Player,
     Wardrobe,
     anchor,
+    coverage,
+    image_of,
+    slot_of,
 )
 from tests.test_game_data import wz_writer as w
 from tests.test_game_data.test_render import Rgba, origin, solid
@@ -57,12 +85,20 @@ SHADE_0: Rgba = (30, 30, 30, 255)
 SHADE_1: Rgba = (40, 40, 40, 255)
 CAP: Rgba = (200, 0, 200, 255)
 MAIL: Rgba = (0, 200, 200, 255)
+CASH_30: Rgba = (250, 150, 0, 255)
+CASH_40: Rgba = (150, 250, 0, 255)
+FACE_ACC: Rgba = (100, 0, 100, 255)
+OVERALL: Rgba = (0, 100, 100, 255)
+SHIELD: Rgba = (100, 100, 0, 255)
+OTHER: Rgba = (90, 90, 90, 255)
 WEST: Rgba = (255, 0, 0, 255)
 CENTRE: Rgba = (0, 255, 0, 255)
 EAST: Rgba = (0, 0, 255, 255)
 
 ZMAP = [
+    "shield",
     "weapon",
+    "accessoryFace",
     "hairOverHead",
     "cap",
     "hair",
@@ -70,13 +106,22 @@ ZMAP = [
     "hairShade",
     "head",
     "arm",
+    "glove",
     "mailChest",
+    "pants",
+    "shoes",
     "body",
+    "cape",
 ]
-SMAP = {"hairOverHead": "H1", "hair": "H2", "cap": "CpH1"}
+SMAP = {"hairOverHead": "H1", "hair": "H2", "cap": "CpH1", "head": "Hd"}
 
 FACE_ID, HAIR_ID, CAP_ID, COAT_ID, WEAPON_ID = 20000, 30000, 1002000, 1040000, 1302000
+HOOD_ID, ODD_CAP_ID, FACE_ACC_ID, OVERALL_ID = 1002001, 1002002, 1010000, 1050000
+PANTS_ID, SHOES_ID, GLOVE_ID = 1060000, 1070000, 1080000
+SHIELD_ID, CAPE_ID = 1092000, 1102000
+CASH_ID, BROKEN_CASH_ID, BARE_HANDS_ID = 1702000, 1702001, 1392000
 DRESSED = Outfit(skin=0, face=FACE_ID, hair=HAIR_ID, coat=COAT_ID, weapon=WEAPON_ID)
+CLIMBING = frozenset({"ladder", "rope"})
 
 
 def part(
@@ -102,10 +147,30 @@ def stand(*children: w.Property) -> w.Prop:
     return w.Prop("stand1", [w.Prop("0", list(children))])
 
 
+def posed(
+    *children: w.Canvas | w.Uol, without: frozenset[str] = frozenset()
+) -> list[w.Property]:
+    """
+    `stand1/0` holding `children`, and frame `0` of every other pose of
+    `PLAYER_ACTIONS` but those `without`, linking to them.
+    """
+    found: list[w.Property] = [stand(*children)]
+    for action in PLAYER_ACTIONS:
+        if action == "stand1" or action in without:
+            continue
+        links = [w.Uol(c.name, f"../../stand1/0/{c.name}") for c in children]
+        found.append(w.Prop(action, [w.Prop("0", list(links))]))
+    return found
+
+
 def body() -> list[w.Property]:
+    def torso() -> w.Canvas:
+        return part("body", (4, 4), BODY, (2, 4), "body", navel=(0, -2), neck=(0, -4))
+
+    climbing = [w.Prop("0", [torso(), w.Short("face", 0)])]
     return [
         stand(
-            part("body", (4, 4), BODY, (2, 4), "body", navel=(0, -2), neck=(0, -4)),
+            torso(),
             part("arm", (2, 2), ARM, (1, 1), "arm", navel=(-3, 0), hand=(1, 1)),
             w.Short("face", 1),
             w.Int("delay", 500),
@@ -113,9 +178,22 @@ def body() -> list[w.Property]:
         w.Prop(
             "walk1",
             [
-                w.Prop("0", [w.Uol("body", "../../stand1/0/body")]),
-                w.Prop("1", [w.Uol("body", "../../stand1/0/body")]),
+                w.Prop(
+                    str(n),
+                    [
+                        w.Uol("body", "../../stand1/0/body"),
+                        w.Uol("arm", "../../stand1/0/arm"),
+                    ],
+                )
+                for n in range(2)
             ],
+        ),
+        *(
+            w.Prop(action, climbing)
+            if action in CLIMBING
+            else w.Prop(action, [w.Uol("0", "../stand1/0")])
+            for action in PLAYER_ACTIONS
+            if action not in ("stand1", "walk1")
         ),
     ]
 
@@ -130,8 +208,11 @@ def head() -> list[w.Property]:
     ]
 
 
-def info(vslot: str) -> w.Prop:
-    return w.Prop("info", [w.String("vslot", vslot)])
+def info(vslot: str, *, cash: bool = False) -> w.Prop:
+    return w.Prop(
+        "info",
+        [w.String("islot", vslot), w.String("vslot", vslot), w.Int("cash", int(cash))],
+    )
 
 
 def hair() -> list[w.Property]:
@@ -155,12 +236,32 @@ def hair() -> list[w.Property]:
                 w.Prop("hairShade", [shade("0", SHADE_0), shade("1", SHADE_1)]),
             ],
         ),
-        stand(
+        *posed(
             w.Uol("hair", "../../default/hair"),
             w.Uol("hairOverHead", "../../default/hairOverHead"),
             w.Uol("hairShade", "../../default/hairShade"),
         ),
     ]
+
+
+def cap(vslot: str, z: str = "cap") -> list[w.Property]:
+    return [
+        info(vslot),
+        w.Prop("default", [part("default", (1, 1), CAP, (0, 0), z, brow=(-2, 2))]),
+        *posed(w.Uol("default", "../../default/default")),
+    ]
+
+
+def weapon(colour: Rgba, hand: tuple[int, int]) -> list[w.Property]:
+    """A weapon's poses: one block hanging from the hand, none climbing."""
+    return posed(
+        part("weapon", (1, 1), colour, (0, 0), "weapon", hand=hand), without=CLIMBING
+    )
+
+
+def worn(slot: str, z: str, colour: Rgba = OTHER) -> list[w.Property]:
+    """A piece of one block 3 pixels left of the navel, in every pose."""
+    return [info(slot), *posed(part(z, (1, 1), colour, (0, 0), z, navel=(3, 0)))]
 
 
 def name_tag() -> list[w.Property]:
@@ -196,31 +297,73 @@ def write_players_client(data: Path) -> Path:
     face = [
         w.Prop("default", [part("face", (2, 1), FACE, (1, 0), "face", brow=(0, -1))])
     ]
-    cap = [
-        info("CpH1"),
-        w.Prop("default", [part("default", (1, 1), CAP, (0, 0), "cap", brow=(-2, 2))]),
-        stand(w.Uol("default", "../../default/default")),
+    face_accessory = [
+        info("Af"),
+        w.Prop(
+            "default",
+            [part("default", (1, 1), FACE_ACC, (0, 0), "accessoryFace", brow=(3, 0))],
+        ),
     ]
     coat = [
         info("Ma"),
-        stand(part("mail", (4, 2), MAIL, (1, 1), "mailChest", navel=(0, 0))),
+        *posed(part("mail", (4, 2), MAIL, (1, 1), "mailChest", navel=(0, 0))),
     ]
-    weapon = [
-        info("Wp"),
-        stand(part("weapon", (1, 1), WEAPON, (0, 0), "weapon", hand=(-2, 0))),
+    overall = [
+        info("MaPn"),
+        *posed(
+            part("mail", (4, 2), OVERALL, (1, 1), "mailChest", navel=(0, 0)),
+            without=frozenset({"alert"}),
+        ),
+    ]
+    shield = [
+        info("Si"),
+        *posed(
+            part("shield", (1, 1), SHIELD, (0, 0), "shield", navel=(3, 0)),
+            without=CLIMBING,
+        ),
+    ]
+    cash = [
+        info("Wp", cash=True),
+        w.Prop("30", weapon(CASH_30, (-2, 0))),
+        w.Prop("40", weapon(CASH_40, (-3, 0))),
+        w.Prop("49", weapon(OTHER, (-2, 0))),
+    ]
+    broken_cash = [info("Wp", cash=True), w.Prop("49", weapon(OTHER, (-2, 0)))]
+    bodies = [
+        w.Img(f"{prefix + skin:08d}.img", build())
+        for skin in range(5)
+        for prefix, build in ((2000, body), (12000, head))
+    ]
+    weapons = [
+        w.Img(f"{WEAPON_ID:08d}.img", [info("Wp"), *weapon(WEAPON, (-2, 0))]),
+        w.Img(f"{CASH_ID:08d}.img", cash),
+        w.Img(f"{BROKEN_CASH_ID:08d}.img", broken_cash),
+        w.Img(f"{BARE_HANDS_ID:08d}.img", [info("Wp"), *weapon(OTHER, (-2, 0))]),
     ]
     w.write_tree(
         data / "Character",
         [
-            w.Img("00002000.img", body()),
-            w.Img("00012000.img", head()),
-            w.Img("00002001.img", body()),
-            w.Img("00012001.img", head()),
+            *bodies,
             w.Dir("Face", [w.Img(f"{FACE_ID:08d}.img", face)]),
             w.Dir("Hair", [w.Img(f"{HAIR_ID:08d}.img", hair())]),
-            w.Dir("Cap", [w.Img(f"{CAP_ID:08d}.img", cap)]),
+            w.Dir(
+                "Cap",
+                [
+                    w.Img(f"{CAP_ID:08d}.img", cap("CpH1")),
+                    w.Img(f"{HOOD_ID:08d}.img", cap("CpH1Hd")),
+                    w.Img(f"{ODD_CAP_ID:08d}.img", cap("Cp", "capBelowHead")),
+                    w.Dir("_Canvas", [w.Img("01002003.img", cap("Cp"))]),
+                ],
+            ),
+            w.Dir("Accessory", [w.Img(f"{FACE_ACC_ID:08d}.img", face_accessory)]),
             w.Dir("Coat", [w.Img(f"{COAT_ID:08d}.img", coat)]),
-            w.Dir("Weapon", [w.Img(f"{WEAPON_ID:08d}.img", weapon)]),
+            w.Dir("Longcoat", [w.Img(f"{OVERALL_ID:08d}.img", overall)]),
+            w.Dir("Pants", [w.Img(f"{PANTS_ID:08d}.img", worn("Pn", "pants"))]),
+            w.Dir("Shoes", [w.Img(f"{SHOES_ID:08d}.img", worn("So", "shoes"))]),
+            w.Dir("Glove", [w.Img(f"{GLOVE_ID:08d}.img", worn("Gv", "glove"))]),
+            w.Dir("Cape", [w.Img(f"{CAPE_ID:08d}.img", worn("Sr", "cape"))]),
+            w.Dir("Shield", [w.Img(f"{SHIELD_ID:08d}.img", shield)]),
+            w.Dir("Weapon", weapons),
         ],
         ini=False,
     )
@@ -298,11 +441,21 @@ def test_anchors_are_found_whatever_the_parts_order() -> None:
     assert placed == {"body": (0, 0), "arm": (3, -2), "weapon": (6, -1)}
 
 
+def test_the_bodys_hand_held_by_hand_move_stands_on_the_feet() -> None:
+    body = Part("body", 1, "b", (0, 0), "body", {"navel": (0, -2)})
+    hand = Part("lHand", 1, "h", (0, 0), "hand", {"handMove": (-3, -5)})
+    glove = Part("lGlove", 2, "g", (0, 0), "glove", {"handMove": (1, 1)})
+    placed = {p.name: at for p, at in anchor([glove, hand, body])}
+    assert placed == {"body": (0, 0), "lHand": (0, 0), "lGlove": (-4, -6)}
+
+
 def test_a_part_sharing_no_anchor_raises_naming_it() -> None:
     body = Part("body", 1, "b", (0, 0), "body", {"navel": (0, -2)})
     stray = Part("cape", 7, "c", (0, 0), "cape", {"tail": (0, 0)})
-    with pytest.raises(CatalogueError, match="7/cape"):
+    with pytest.raises(PartError, match="7/cape") as error:
         anchor([body, stray])
+    assert error.value.items == (7,)
+    assert isinstance(error.value, CatalogueError)
 
 
 def test_a_frame_without_a_body_raises() -> None:
@@ -326,6 +479,19 @@ def test_a_cap_hides_the_hair_its_vslot_covers(wardrobe: Wardrobe) -> None:
     assert where(capped, HAIR) == {(0, -10)}
 
 
+def test_a_hidden_part_still_gives_its_anchors(wardrobe: Wardrobe) -> None:
+    hooded = wardrobe.compose(replace(DRESSED, cap=HOOD_ID), "stand1", 0)
+    assert not where(hooded, HEAD)
+    assert where(hooded, FACE) == {(-1, -7), (0, -7)}
+    assert where(hooded, CAP) == {(2, -10)}
+
+
+def test_a_z_the_zmap_lacks_raises_naming_the_item(wardrobe: Wardrobe) -> None:
+    with pytest.raises(PartError, match="capBelowHead") as error:
+        wardrobe.compose(replace(DRESSED, cap=ODD_CAP_ID), "stand1", 0)
+    assert error.value.items == (ODD_CAP_ID,)
+
+
 def test_flipping_mirrors_the_character_about_its_feet(wardrobe: Wardrobe) -> None:
     player = wardrobe.compose(DRESSED, "stand1", 0, flip=True)
     assert where(player, WEAPON) == {(-7, -1)}
@@ -347,16 +513,53 @@ def test_frames_counts_the_bodys_frames(wardrobe: Wardrobe) -> None:
 def test_missing_pieces_and_frames_raise_lookup_error(wardrobe: Wardrobe) -> None:
     with pytest.raises(LookupError, match="Character/Shoes/01072001.img"):
         wardrobe.compose(Outfit(shoes=1072001), "stand1", 0)
-    with pytest.raises(LookupError, match="no action 'jump'"):
-        wardrobe.compose(Outfit(), "jump", 0)
+    with pytest.raises(LookupError, match="no action 'fly'"):
+        wardrobe.compose(Outfit(), "fly", 0)
     with pytest.raises(LookupError, match="no frame stand1/5"):
         wardrobe.compose(Outfit(), "stand1", 5)
 
 
-def test_a_piece_without_the_frame_is_left_out(wardrobe: Wardrobe) -> None:
+def test_a_piece_with_the_pose_but_not_the_frame_shows_nothing_in_it(
+    wardrobe: Wardrobe,
+) -> None:
     player = wardrobe.compose(DRESSED, "walk1", 1)
     assert not where(player, WEAPON)
     assert where(player, BODY)
+
+
+def test_a_piece_lacking_the_pose_raises_missing_frame(wardrobe: Wardrobe) -> None:
+    with pytest.raises(MissingFrame, match=str(OVERALL_ID)) as error:
+        wardrobe.compose(replace(DRESSED, coat=OVERALL_ID), "alert", 0)
+    assert error.value.items == (OVERALL_ID,)
+    assert isinstance(error.value, LookupError)
+
+
+def test_a_climber_shows_neither_weapon_shield_nor_face(wardrobe: Wardrobe) -> None:
+    outfit = replace(DRESSED, face_accessory=FACE_ACC_ID, shield=SHIELD_ID)
+    for action in CLIMBING:
+        player = wardrobe.compose(outfit, action, 0)
+        assert where(player, HAIR)
+        for hidden in (WEAPON, SHIELD, FACE, FACE_ACC, ARM):
+            assert not where(player, hidden)
+
+
+def test_a_face_accessory_wears_its_default_in_any_pose(wardrobe: Wardrobe) -> None:
+    outfit = replace(DRESSED, face_accessory=FACE_ACC_ID)
+    for action in ("stand1", "alert", "swingO1"):
+        assert where(wardrobe.compose(outfit, action, 0), FACE_ACC) == {(-3, -8)}
+
+
+def test_a_cash_weapon_takes_its_frames_from_its_weapon_type(
+    wardrobe: Wardrobe,
+) -> None:
+    as_sword = replace(DRESSED, weapon=CASH_ID, weapon_type=30)
+    as_two_handed = replace(DRESSED, weapon=CASH_ID, weapon_type=40)
+    sword = wardrobe.compose(as_sword, "stand1", 0)
+    two_handed = wardrobe.compose(as_two_handed, "stand2", 0)
+    assert where(sword, CASH_30) == {(6, -1)}
+    assert not where(sword, CASH_40)
+    assert where(two_handed, CASH_40) == {(7, -1)}
+    assert not where(two_handed, CASH_30)
 
 
 # --- name tags --------------------------------------------------------------
@@ -395,18 +598,126 @@ def test_an_unknown_tag_style_raises(wardrobe: Wardrobe) -> None:
 # --- outfits ----------------------------------------------------------------
 
 
-def test_every_slot_has_five_pieces_or_more() -> None:
-    assert set(SLOTS) <= set(PIECES)
-    assert all(len(set(ids)) >= 5 for ids in PIECES.values())
+def test_each_slot_holds_its_folders_items_by_prefix(wardrobe: Wardrobe) -> None:
+    assert wardrobe.pieces("face") == (FACE_ID,)
+    assert wardrobe.pieces("hair") == (HAIR_ID,)
+    assert wardrobe.pieces("cap") == (CAP_ID, HOOD_ID, ODD_CAP_ID)
+    assert wardrobe.pieces("face_accessory") == (FACE_ACC_ID,)
+    assert wardrobe.pieces("eye_accessory") == ()
+    assert wardrobe.pieces("coat") == (COAT_ID, OVERALL_ID)
+    assert wardrobe.pieces("shield") == (SHIELD_ID,)
+    assert wardrobe.pieces("weapon") == (WEAPON_ID, CASH_ID, BROKEN_CASH_ID)
+    for slot in ("face", "hair", *SLOTS):
+        for item in wardrobe.pieces(slot):
+            assert slot_of(item) == slot
 
 
-def test_a_drawn_outfit_depends_only_on_the_seed() -> None:
-    def drawn(seed: int) -> list[Outfit]:
-        rng = np.random.default_rng(seed)
-        return [Outfit.drawn(rng) for _ in range(20)]
+def test_a_cash_weapon_is_worn_as_the_types_it_has_frames_of(
+    wardrobe: Wardrobe,
+) -> None:
+    assert wardrobe.weapon_types(WEAPON_ID) == (30,)
+    assert wardrobe.weapon_types(CASH_ID) == (30, 40)
+    assert wardrobe.weapon_types(BROKEN_CASH_ID) == ()
 
-    assert drawn(1) == drawn(1)
-    assert drawn(1) != drawn(2)
-    for outfit in drawn(1):
-        for slot, ids in PIECES.items():
-            assert getattr(outfit, slot) in (*ids, None)
+
+def test_the_weapon_type_picks_the_stance_and_the_attacks() -> None:
+    assert Outfit(weapon=1302000).poses()[:2] == ("stand1", "walk1")
+    assert Outfit(weapon=1402000).poses()[:2] == ("stand2", "walk1")
+    assert Outfit(weapon=1412000).poses()[:2] == ("stand2", "walk2")
+    spear = Outfit(weapon=CASH_ID, weapon_type=43).poses()
+    assert spear == ("stand2", "walk2", *MOVES, *WEAPON_TYPES[43].attacks)
+    assert Outfit().poses() == ("stand1", "walk1", *MOVES)
+    for kind in WEAPON_TYPES:
+        poses = Outfit(weapon=CASH_ID, weapon_type=kind).poses()
+        assert set(poses) <= set(PLAYER_ACTIONS)
+    with pytest.raises(LookupError, match="weapon_type"):
+        Outfit(weapon=CASH_ID).poses()
+
+
+def drawn(wardrobe: Wardrobe, seed: int, n: int = 200) -> list[Outfit]:
+    rng = np.random.default_rng(seed)
+    return [wardrobe.outfit(rng) for _ in range(n)]
+
+
+def test_a_drawn_outfit_depends_only_on_the_seed(wardrobe: Wardrobe) -> None:
+    assert drawn(wardrobe, 1, 30) == drawn(wardrobe, 1, 30)
+    assert drawn(wardrobe, 1, 30) != drawn(wardrobe, 2, 30)
+
+
+def test_an_outfit_fills_each_slot_from_its_pieces(wardrobe: Wardrobe) -> None:
+    outfits = drawn(wardrobe, 3)
+    for outfit in outfits:
+        for slot in ("face", "hair", *SLOTS):
+            item = getattr(outfit, slot)
+            assert item is None or item in wardrobe.pieces(slot)
+        for slot in ("face", "hair", "coat", "shoes"):
+            assert getattr(outfit, slot) is not None
+        assert outfit.weapon is not None
+        assert outfit.weapon_type in wardrobe.weapon_types(outfit.weapon)
+    for slot in ("cap", "face_accessory", "glove", "cape", "shield"):
+        assert {getattr(o, slot) is None for o in outfits} == {True, False}
+
+
+def test_an_overall_goes_without_pants(wardrobe: Wardrobe) -> None:
+    outfits = drawn(wardrobe, 4)
+    assert {o.coat for o in outfits} == {COAT_ID, OVERALL_ID}
+    for outfit in outfits:
+        assert (outfit.pants is None) == (outfit.coat == OVERALL_ID)
+
+
+def test_a_shield_is_worn_with_a_one_handed_weapon_only(wardrobe: Wardrobe) -> None:
+    outfits = drawn(wardrobe, 5)
+    assert {o.weapon_type for o in outfits} == {30, 40}
+    assert any(o.shield for o in outfits)
+    assert all(o.shield is None for o in outfits if o.weapon_type == 40)
+
+
+# --- drawing players ----------------------------------------------------------
+
+
+def looks(wardrobe: Wardrobe, seed: int, n: int = 150) -> list[Look]:
+    rng = np.random.default_rng(seed)
+    return [wardrobe.draw(rng) for _ in range(n)]
+
+
+def test_a_drawn_player_depends_only_on_the_seed(wardrobe: Wardrobe) -> None:
+    assert looks(wardrobe, 1, 30) == looks(wardrobe, 1, 30)
+    assert looks(wardrobe, 1, 30) != looks(wardrobe, 2, 30)
+
+
+def test_a_drawn_player_composes_in_one_of_its_poses(wardrobe: Wardrobe) -> None:
+    found = looks(wardrobe, 6)
+    for look in found:
+        assert look.action in look.outfit.poses()
+        assert 0 <= look.frame < wardrobe.frames(look.outfit, look.action)
+        wardrobe.compose(look.outfit, look.action, look.frame, flip=look.flip)
+    assert {look.action for look in found} >= {"stand1", "stand2", "ladder"}
+    assert {look.flip for look in found} == {True, False}
+
+
+def test_what_lacks_the_pose_is_redrawn_and_counted_by_item(
+    wardrobe: Wardrobe, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.INFO, logger="game_data.scenes.players"):
+        found = looks(wardrobe, 7)
+    assert not any(
+        look.outfit.coat == OVERALL_ID and look.action == "alert" for look in found
+    )
+    for look in found:
+        if look.outfit.cap == ODD_CAP_ID:
+            assert (look.action, look.frame) == ("walk1", 1)
+    assert set(wardrobe.misses) == {OVERALL_ID, ODD_CAP_ID, BROKEN_CASH_ID}
+    assert image_of(OVERALL_ID) in caplog.text
+
+
+# --- coverage -----------------------------------------------------------------
+
+
+def test_coverage_groups_what_fails_by_item(wardrobe: Wardrobe) -> None:
+    found = coverage(wardrobe, np.random.default_rng(8), 40)
+    assert 0 < found.composed < found.tried
+    assert found.share == found.composed / found.tried
+    assert set(found.failures) == {OVERALL_ID, ODD_CAP_ID}
+    assert set(found.failures[OVERALL_ID]) == {"no frame alert"}
+    reasons = set(found.failures[ODD_CAP_ID])
+    assert reasons == {"z 'capBelowHead' isn't in Base/zmap.img"}

@@ -26,3 +26,4 @@ the proof-of-concept trackers.
 - `toolkit/trial_report.py`: Per-move accuracy report for a Trial: planned against actual, key times, retries, loop timing.
 - `toolkit/synthetic_scene.py`: Compose one synthetic client screen of a map and save it with its labels.
 - `toolkit/verify_dataset_structure.py`: Check that every dataset under `data/datasets/` has a consistent layout.
+- `toolkit/wardrobe_check.py`: Check the player composer on the extract: its coverage, and a contact sheet.

@@ -362,45 +362,78 @@ the maintainer's to judge, by eye, on the extract.
 import numpy as np
 
 from game_data.catalogue import Catalogue
-from game_data.scenes import Outfit, Wardrobe
+from game_data.scenes import Wardrobe
 
 with Catalogue.latest() as cat, Wardrobe(cat) as wardrobe:
-    outfit = Outfit.drawn(np.random.default_rng(7))
-    player = wardrobe.compose(outfit, "walk1", 2, name="Legends", tag=None)
+    look = wardrobe.draw(np.random.default_rng(7))   # outfit, pose, frame, facing
+    player = wardrobe.compose(
+        look.outfit, look.action, look.frame, flip=look.flip, name="Legends"
+    )
     player.pixels            # RGBA, the character and its tag
     player.origin            # (x, y) of its feet in pixels
-    player.box, player.tag   # the character's opaque bounds, and the tag's
+    player.box, player.tag   # the character's opaque bounds (never the tag), and the tag's
 ```
 
-A feasibility composer (#289), not drawn in scenes yet. It reads the raw
-layer (`raw.sqlite`) and the image store, because the catalogue has no tables
-for characters.
+Not drawn in scenes yet. It reads the raw layer (`raw.sqlite`) and the image
+store, because the catalogue has no tables for characters.
 
 - **Pieces.** A body `Character/0000200n.img` and head `Character/0001200n.img`
-  (`n` the skin, `SKINS`), a face, a hair, and a cap, coat, pants, shoes and
-  one-handed weapon, each drawn from `PIECES` (five per slot, in the code).
-  Each piece's `<action>/<frame>` node gives its parts, one per canvas; a part
-  held once per skin (a hair's `hairShade`) is the skin's. A piece lacking the
-  frame is left out, with a warning. `stand1` and `walk1` are checked
-  (`PLAYER_ACTIONS`).
-- **Anchoring.** The body's `body` part has its origin on the feet. Each part
-  is placed so that the first of its `map` points (`navel`, `neck`, `hand`,
-  `brow`...) already known coincides, then adds its others. A part sharing no
-  point with the rest raises `CatalogueError`.
+  (`n` the skin, `SKINS`), a face, a hair, and one piece per slot of `SLOTS`:
+  cap, face accessory, eye accessory, earrings, coat or overall (`Longcoat`),
+  pants, shoes, glove, cape, shield, weapon. No rings or pet equips.
+  `Wardrobe.pieces(slot)` is every image of the slot's folder, cash included;
+  the slot is the item ID's prefix (`id // 10000`), so `Accessory` splits into
+  101, 102 and 103.
+- **Drawing.** `Wardrobe.outfit(rng)` draws each slot uniformly among its
+  pieces. The optional slots (`EMPTY`: cap, accessories, glove, cape, shield)
+  are empty by chance, first guesses not measured on players. Pants go only
+  under a coat whose `islot` leaves the legs (`Pn`) free, and a shield only
+  with a one-handed weapon (types under 40). `Wardrobe.draw(rng)` then draws
+  one of `Outfit.poses()`, a frame and a facing. The same `rng` gives the same
+  character.
+- **Weapon types.** `WEAPON_TYPES`, by `id // 10000 % 100`, gives each type's
+  stance (`stand1`/`walk1`, `stand2`/`walk2`, and `stand2`/`walk1` for a
+  two-handed sword) and a few attacks. With `MOVES` (`alert`, `jump`,
+  `ladder`, `rope`, `prone`) they're the hunting set, `PLAYER_ACTIONS`. A cash
+  weapon (170) holds its frames under the types it can be worn as
+  (`30/stand1/0`): `Wardrobe.weapon_types` lists those `WEAPON_TYPES` has, and
+  `Outfit.weapon_type` is the one drawn. A cash weapon with none is redrawn.
+- **Frames.** Each piece's `<action>/<frame>` node gives its parts, one per
+  canvas; a part held once per skin (a hair's `hairShade`) is the skin's. A
+  piece with the action but not the frame shows nothing in it (most gloves
+  have no `swingO1/0`). A piece lacking the action, or reaching it through a
+  broken link, raises `MissingFrame`, so a player is never drawn with a part
+  missing. The exceptions: the face and accessories fall back to `default`,
+  and show nothing when the body's frame hides the face (a climber's back);
+  the weapon and shield may lack `ladder` and `rope` (`UNSEEN`).
+- **Redrawing.** When a piece of the drawn outfit lacks the pose
+  (`MissingFrame`) or can't be placed (`PartError`, such as a `z` that
+  `Base/zmap.img` lacks), `draw` redraws the outfit and pose, counts the miss
+  by item in `Wardrobe.misses`, and logs it at `INFO`. What `draw` returns
+  composes.
+- **Anchoring.** The body's `body` part has its origin on the feet, and so do
+  the body's parts that hold a `handMove` (its `lHand`, in `alert`). Each
+  other part is placed so that the first of its `map` points (`navel`, `neck`,
+  `hand`, `brow`...) already known coincides, then adds its others. A part
+  sharing no point with the rest raises `PartError`, naming its items.
 - **Order and hiding.** Parts are drawn back to front by their `z` in
   `Base/zmap.img` (its first entry is the front). A part is hidden when every
   slot code of its `z` in `Base/smap.img` is in another piece's `info/vslot`,
-  as a skullcap hides `hairOverHead`. `flip=True` mirrors the character about
-  its feet.
-- **Name tag**, `TAG_GAP` pixels under the feet, centred. `UI/NameTag.img`
-  holds only decorative styles (from `3`): `tag=n` lays its west, centre and
-  east pieces around the text, in its `clr`. The plain tag isn't in the files;
-  `tag=None` draws it as a dark translucent box with white text. The game's
-  font (`UI/Font/NotoSansKRMedium.img`) is stored as a hash only, so the text
-  is in Pillow's bundled default font, a stand-in.
+  as a skullcap hides `hairOverHead`; a hidden part still gives its anchors.
+  `flip=True` mirrors the character about its feet.
+- **Name tag**, `TAG_GAP` pixels under the feet, centred, outside `box`.
+  `UI/NameTag.img` holds only decorative styles (from `3`): `tag=n` lays its
+  west, centre and east pieces around the text, in its `clr`. The plain tag
+  isn't in the files; `tag=None` draws it as a dark translucent box with white
+  text. The game's font (`UI/Font/NotoSansKRMedium.img`) is stored as a hash
+  only, so the text is in Pillow's bundled default font, a stand-in.
+- **Coverage.** `coverage(wardrobe, rng, n)` composes `n` outfits in every
+  pose and frame and groups the failures by item; `toolkit/wardrobe_check.py`
+  prints it and draws a contact sheet of random players.
 
-Whether players look like the game, and the tag's sizes and gap, are the
-maintainer's to judge against real screenshots.
+Whether players look like the game, whether the `vslot`/`smap` hiding rule is
+the client's, the weapon types' attacks and the `EMPTY` chances, and the tag's
+sizes and gap, are the maintainer's to judge against real screenshots.
 
 ## The store
 
