@@ -23,12 +23,15 @@ The public API (`compose`):
   another scene.
 - `SceneError`: two species of a map share a class name.
 
-Players (`players`), a feasibility composer not yet drawn in scenes:
+Players (`players`), not yet drawn in scenes:
 
 - `Wardrobe(cat).compose(outfit, action, frame, name=..., tag=...)`: one
   character from `Character.wz`, its parts anchored by their `map` points,
   with a name tag under it, as a `Player`.
-- `Outfit`: what it wears, `Outfit.drawn(rng)` drawing it from `PIECES`.
+- `Wardrobe.draw(rng)`: a `Look`, an `Outfit` drawn from every piece of
+  `Character.wz`, cash included, in one of the hunting poses
+  (`PLAYER_ACTIONS`) its weapon type allows (`WEAPON_TYPES`).
+- `coverage`: random outfits composed in every pose, failures by item.
 
 Players and the UI aren't drawn in scenes.
 """
@@ -53,13 +56,19 @@ from .compose import (
 from .occluders import KINDS as OCCLUDERS
 from .occluders import Overlay
 from .players import (
-    PIECES,
     PLAYER_ACTIONS,
     SKINS,
     SLOTS,
+    WEAPON_TYPES,
+    Coverage,
+    Look,
+    MissingFrame,
     Outfit,
+    PartError,
     Player,
     Wardrobe,
+    WeaponType,
+    coverage,
 )
 
 __all__ = [
@@ -67,22 +76,28 @@ __all__ = [
     "FLY_LIFT",
     "MOBS",
     "OCCLUDERS",
-    "PIECES",
     "PLAYER_ACTIONS",
     "SCENES_VERSION",
     "SKINS",
     "SLOTS",
     "VISIBILITY_FLOOR",
+    "WEAPON_TYPES",
+    "Coverage",
     "Label",
+    "Look",
+    "MissingFrame",
     "Outfit",
     "Overlay",
+    "PartError",
     "Placement",
     "Player",
     "Scene",
     "SceneError",
     "Wardrobe",
+    "WeaponType",
     "class_name",
     "compose_scene",
+    "coverage",
     "draw_camera",
     "draw_mobs",
     "map_classes",
