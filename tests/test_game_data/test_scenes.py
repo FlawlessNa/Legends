@@ -15,7 +15,8 @@ whose images are blocks of plain colours:
 - `202`, "Scene Road: Twins": a Mr. Snail and a Mr Snail.
 
 The Crab's frame has a `head`, one right of its origin and four up. The
-occluders: a Consume item whose icon is 8x8 green and a Cash one's 8x8 white,
+occluders: a Consume item (2000000) whose icon is 8x8 green and a Cash one's
+(5010000) 8x8 white,
 both at origin `(-12, 8)`, so a drop's icon is centred on its `x`, its bottom
 on the ground; a meso of two yellow frames, 6x6 and 2x6, likewise; and the
 digit sets `NoRed0`, each digit 12x10 blue at origin `(6, 10)`, and `NoRed1`,
@@ -26,28 +27,33 @@ Most tests use a 200 by 100 client, so that the view is smaller than `200`.
 
 import itertools
 import logging
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture, MockType
 
-from game_data.catalogue import Bounds, Catalogue, build_catalogue
+from game_data.catalogue import Bounds, Catalogue, MapData, build_catalogue
 from game_data.extraction import extract
 from game_data.render import Camera, Images, render_map
 from game_data.scenes import (
     SCENES_VERSION,
+    Damage,
+    Drops,
     Label,
     Overlay,
     Placement,
     SceneError,
+    Spot,
     class_name,
     compose,
     compose_scene,
     draw_mobs,
     map_classes,
     occluders,
+    scene_camera,
+    spots,
 )
 from tests.test_game_data import wz_writer as w
 from tests.test_game_data.test_catalogue import foothold_tree
@@ -336,6 +342,14 @@ def rng(seed: int = 0) -> np.random.Generator:
     return np.random.default_rng(seed)
 
 
+# Every drawable spawn of `200` has a mob: the Block, the Bat and the Crab.
+FULL = (1.0, 1.0)
+EMPTY = (0.0, 0.0)
+GREEN_ITEM = "item:2000000"
+MESO = "meso:9000000"
+RED_ONLY = ("NoRed0",)
+
+
 class Drawn:
     """Records what `compose_scene` hands `draw_mobs`, and the camera."""
 
@@ -348,7 +362,7 @@ class Drawn:
 @pytest.fixture
 def drawn(monkeypatch: pytest.MonkeyPatch) -> Drawn:
     record = Drawn()
-    draw, camera = compose.draw_mobs, compose.draw_camera
+    draw, camera = compose.draw_mobs, compose.scene_camera
 
     def recording_draw(
         view: np.ndarray,
@@ -361,18 +375,21 @@ def drawn(monkeypatch: pytest.MonkeyPatch) -> Drawn:
         return draw(view, placements, images, overlays)
 
     def recording_camera(
-        bounds: Bounds, client: tuple[int, int], generator: np.random.Generator
+        data: MapData,
+        found: Sequence[Spot],
+        client: tuple[int, int],
+        generator: np.random.Generator,
     ) -> Camera:
-        record.cameras.append(camera(bounds, client, generator))
+        record.cameras.append(camera(data, found, client, generator))
         return record.cameras[-1]
 
     monkeypatch.setattr(compose, "draw_mobs", recording_draw)
-    monkeypatch.setattr(compose, "draw_camera", recording_camera)
+    monkeypatch.setattr(compose, "scene_camera", recording_camera)
     return record
 
 
 def fix_camera(monkeypatch: pytest.MonkeyPatch, camera: Camera) -> None:
-    monkeypatch.setattr(compose, "draw_camera", lambda *_: camera)
+    monkeypatch.setattr(compose, "scene_camera", lambda *_: camera)
 
 
 def rgb(colour: Rgba) -> tuple[int, int, int]:
@@ -382,6 +399,11 @@ def rgb(colour: Rgba) -> tuple[int, int, int]:
 def at(view: np.ndarray, x: int, y: int) -> tuple[int, int, int]:
     r, g, b = (int(v) for v in view[y, x])
     return r, g, b
+
+
+def ground(x: int) -> int:
+    """`200`'s ground: flat at 250 to x 300, then up 100 over 300."""
+    return 250 if x <= 300 else round(250 - (x - 300) / 3)
 
 
 # --- the scene ---------------------------------------------------------------
@@ -413,18 +435,26 @@ def test_scenes_version_is_a_positive_int() -> None:
     assert SCENES_VERSION >= 1
 
 
-@pytest.mark.parametrize("mobs", [(-1, 3), (4, 2)])
-def test_a_mob_range_must_be_ordered_and_not_negative(
-    cat: Catalogue, mobs: tuple[int, int]
+@pytest.mark.parametrize(
+    ("given", "message"),
+    [
+        ({"fill": (-0.1, 0.5)}, "fill must be"),
+        ({"fill": (0.8, 0.2)}, "fill must be"),
+        ({"fill": (0.5, 1.5)}, "at most 1"),
+        ({"wander": -1}, "wander"),
+    ],
+)
+def test_fill_is_an_ordered_share_and_wander_not_negative(
+    cat: Catalogue, given: dict[str, object], message: str
 ) -> None:
-    with pytest.raises(ValueError, match="mobs"):
-        compose_scene(cat, FIELD, rng(), client=CLIENT, mobs=mobs)
+    with pytest.raises(ValueError, match=message):
+        compose_scene(cat, FIELD, rng(), client=CLIENT, **given)  # type: ignore[arg-type]
 
 
 # --- the view ----------------------------------------------------------------
 
 
-def test_the_camera_never_leaves_the_vr_bounds_and_reaches_both_edges() -> None:
+def test_draw_camera_never_leaves_the_vr_bounds_and_reaches_both_edges() -> None:
     generator = rng()
     cameras = [compose.draw_camera(FIELD_VR, CLIENT, generator) for _ in range(500)]
 
@@ -447,6 +477,49 @@ def test_on_an_axis_narrower_than_the_view_the_map_is_centred() -> None:
     assert len({c.left for c in cameras}) > 1
 
 
+def test_the_scene_camera_stays_in_the_vr_bounds(cat: Catalogue) -> None:
+    data = cat.map(FIELD)
+    found = spots(data, compose._species(cat, data))
+    generator = rng()
+
+    cameras = [scene_camera(data, found, CLIENT, generator) for _ in range(300)]
+
+    assert all(0 <= c.left and c.left + 200 <= 600 for c in cameras)
+    assert all(0 <= c.top and c.top + 100 <= 300 for c in cameras)
+    assert len({c.left for c in cameras}) > 50
+
+
+def test_the_scene_camera_follows_a_character_on_a_spot(
+    cat: Catalogue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no lag, the centre is 60 above the ground under it."""
+    monkeypatch.setattr(compose, "CAMERA_LAG", (0, 0))
+    data = cat.map(FIELD)
+    found = spots(data, compose._species(cat, data))
+    generator = rng()
+
+    unclamped = 0
+    for _ in range(200):
+        camera = scene_camera(data, found, CLIENT, generator)
+        x, y = camera.centre
+        if 100 < x < 500 and 50 < y < 250:
+            unclamped += 1
+            assert y == ground(x) - compose.CAMERA_ABOVE_FEET
+            assert any(spot.left <= x <= spot.right for spot in found)
+
+    assert unclamped > 100
+
+
+def test_a_map_with_no_spot_draws_its_camera_anywhere_in_its_bounds(
+    cat: Catalogue, mocker: MockerFixture
+) -> None:
+    spy = mocker.spy(compose, "draw_camera")
+
+    compose_scene(cat, SMALL, rng(), client=CLIENT)
+
+    assert spy.call_count == 1
+
+
 def test_a_map_smaller_than_the_view_is_centred_on_black(cat: Catalogue) -> None:
     """`201` is 100x50 white: it fills (50, 25) to (150, 75), black around."""
     view = compose_scene(cat, SMALL, rng(), client=CLIENT).image
@@ -465,7 +538,7 @@ def test_the_view_is_render_map_at_the_scenes_camera_cropped(
     camera = Camera(150, 100, 200, 100)
     fix_camera(monkeypatch, camera)
 
-    view = compose_scene(cat, FIELD, rng(), client=CLIENT, mobs=(0, 0)).image
+    view = compose_scene(cat, FIELD, rng(), client=CLIENT, fill=EMPTY).image
 
     screen = render_map(cat, FIELD, camera=camera)
     assert np.array_equal(view, screen[100:200, 150:350, :3])
@@ -481,7 +554,7 @@ def test_cameras_none_renders_the_map_for_each_scene(
     generator = rng()
 
     for _ in range(5):
-        compose_scene(cat, FIELD, generator, client=CLIENT, mobs=(0, 0))
+        compose_scene(cat, FIELD, generator, client=CLIENT, fill=EMPTY)
 
     assert spy.call_count == 5
 
@@ -493,7 +566,7 @@ def test_cameras_n_renders_n_cameras_once_and_each_scene_picks_one(
     generator = rng()
 
     views = [
-        compose_scene(cat, FIELD, generator, client=CLIENT, mobs=(0, 0), cameras=3)
+        compose_scene(cat, FIELD, generator, client=CLIENT, fill=EMPTY, cameras=3)
         for _ in range(30)
     ]
 
@@ -511,16 +584,16 @@ def test_cameras_n_renders_n_cameras_once_and_each_scene_picks_one(
 def test_mobs_drawn_on_a_shared_camera_dont_stay_on_it(cat: Catalogue) -> None:
     generator = rng()
 
-    def compose_one(mobs: tuple[int, int]) -> np.ndarray:
+    def compose_one(fill: tuple[float, float]) -> np.ndarray:
         return compose_scene(
-            cat, FIELD, generator, client=(600, 300), mobs=mobs, cameras=1
+            cat, FIELD, generator, client=(600, 300), fill=fill, cameras=1
         ).image
 
-    empty = compose_one((0, 0))
-    crowded = compose_one((15, 15))
+    empty = compose_one(EMPTY)
+    crowded = compose_one(FULL)
 
     assert not np.array_equal(crowded, empty)
-    assert np.array_equal(compose_one((0, 0)), empty)
+    assert np.array_equal(compose_one(EMPTY), empty)
 
 
 def test_cameras_must_be_positive(cat: Catalogue) -> None:
@@ -531,47 +604,89 @@ def test_cameras_must_be_positive(cat: Catalogue) -> None:
 # --- the mobs ----------------------------------------------------------------
 
 
-def test_the_number_of_mobs_is_drawn_from_the_range(
+def test_spots_are_each_spawns_chain_inside_its_range(cat: Catalogue) -> None:
+    """The Block's `[20, 500]` runs over footholds 1 and 2 (0 to 600)."""
+    data = cat.map(FIELD)
+    found = {
+        s.spawn.id: (s.left, s.right) for s in spots(data, compose._species(cat, data))
+    }
+
+    assert found == {BLOCK: (20, 500), BAT: (100, 200), CRAB: (400, 500)}
+
+
+def test_a_fill_share_of_the_spawn_points_have_a_mob_never_more(
     cat: Catalogue, drawn: Drawn
 ) -> None:
     counts: list[int] = []
     generator = rng()
     for _ in range(60):
         before = len(drawn.placements)
-        compose_scene(cat, FIELD, generator, client=(600, 300), mobs=(2, 5))
+        compose_scene(cat, FIELD, generator, client=(600, 300), fill=(0.0, 1.0))
         counts.append(len(drawn.placements) - before)
 
-    assert set(counts) == {2, 3, 4, 5}
+    assert set(counts) == {0, 1, 2, 3}
 
 
-def test_mobs_stand_on_their_spawns_foothold_within_its_range(
+def test_a_full_map_has_one_mob_per_spawn_point(cat: Catalogue, drawn: Drawn) -> None:
+    generator = rng()
+    for _ in range(10):
+        before = len(drawn.placements)
+        compose_scene(cat, FIELD, generator, client=(600, 300), fill=FULL)
+        ids = sorted(p.mob.id for p in drawn.placements[before:])
+        assert ids == sorted([BLOCK, BAT, CRAB])
+
+
+def test_a_mob_wanders_near_its_spawn_point(cat: Catalogue, drawn: Drawn) -> None:
+    """The Block spawns at x 50, the Crab at 450."""
+    generator = rng()
+    for _ in range(30):
+        compose_scene(cat, FIELD, generator, client=(600, 300), fill=FULL, wander=10)
+
+    blocks = [p.x for p in drawn.placements if p.mob.id == BLOCK]
+    crabs = [p.x for p in drawn.placements if p.mob.id == CRAB]
+    assert all(40 <= x <= 60 for x in blocks)
+    assert all(440 <= x <= 460 for x in crabs)
+    assert len(set(blocks)) > 5
+
+
+def test_mobs_stand_on_their_chain_and_never_leave_their_spot(
     cat: Catalogue, drawn: Drawn
 ) -> None:
-    """The Block's range runs off foothold 1 onto 2, which climbs 100 in 300."""
+    """The Block's spot runs off foothold 1 onto 2, which climbs 100 in 300."""
     generator = rng()
-    for _ in range(40):
-        compose_scene(cat, FIELD, generator, client=(600, 300), mobs=(15, 15))
+    for _ in range(60):
+        compose_scene(cat, FIELD, generator, client=(600, 300), fill=FULL, wander=600)
 
     blocks = [p for p in drawn.placements if p.mob.id == BLOCK]
-    assert blocks
     # The view is the whole map, so view pixels are virtual coordinates.
     for block in blocks:
         assert 20 <= block.x <= 500
-        expected = 250 if block.x <= 300 else round(250 - (block.x - 300) / 3)
-        assert block.y == expected
-    assert min(b.x for b in blocks) < 100
-    assert max(b.x for b in blocks) > 400
+        assert block.y == ground(block.x)
+    # A wander past the spot is clamped onto its ends.
+    assert {20, 500} <= {b.x for b in blocks}
     crabs = [p for p in drawn.placements if p.mob.id == CRAB]
-    assert crabs
     assert all(400 <= c.x <= 500 for c in crabs)
+
+
+def test_the_population_is_map_wide_and_the_camera_crops_it(
+    cat: Catalogue, drawn: Drawn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The view is columns 0 to 199: the Crab, at 400 to 500, is out of it."""
+    fix_camera(monkeypatch, Camera(0, 200, 200, 100))
+
+    scene = compose_scene(cat, FIELD, rng(), client=CLIENT, fill=FULL, wander=0)
+
+    assert CRAB in {p.mob.id for p in drawn.placements}
+    assert "Crab" not in {label.cls for label in scene.labels}
+    assert "Block" in {label.cls for label in scene.labels}
 
 
 def test_a_flying_mob_is_raised_up_to_150_px_within_the_view(
     cat: Catalogue, drawn: Drawn
 ) -> None:
     generator = rng()
-    for _ in range(40):
-        compose_scene(cat, FIELD, generator, client=(600, 300), mobs=(15, 15))
+    for _ in range(60):
+        compose_scene(cat, FIELD, generator, client=(600, 300), fill=FULL)
 
     lifts = [250 - p.y for p in drawn.placements if p.mob.id == BAT]
     assert lifts
@@ -585,8 +700,8 @@ def test_a_flying_mob_is_raised_no_higher_than_the_views_top(
 ) -> None:
     fix_camera(monkeypatch, Camera(0, 200, 200, 100))
     generator = rng()
-    for _ in range(20):
-        compose_scene(cat, FIELD, generator, client=CLIENT, mobs=(15, 15))
+    for _ in range(40):
+        compose_scene(cat, FIELD, generator, client=CLIENT, fill=FULL)
 
     bats = [p for p in drawn.placements if p.mob.id == BAT]
     assert bats
@@ -594,25 +709,13 @@ def test_a_flying_mob_is_raised_no_higher_than_the_views_top(
     assert any(p.y == 0 for p in bats)
 
 
-def test_only_spawns_whose_range_overlaps_the_view_are_drawn(
-    cat: Catalogue, drawn: Drawn, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The view's columns are 0 to 199: the Crab's `[400, 500]` misses them."""
-    fix_camera(monkeypatch, Camera(0, 200, 200, 100))
-    generator = rng()
-    for _ in range(20):
-        compose_scene(cat, FIELD, generator, client=CLIENT, mobs=(15, 15))
-
-    assert {p.mob.id for p in drawn.placements} == {BLOCK, BAT}
-
-
 def test_a_mobs_action_frame_and_facing_are_drawn_among_those_it_has(
     cat: Catalogue, drawn: Drawn
 ) -> None:
     """The Block has `stand` of two frames, `move`, and `attack1`, never drawn."""
     generator = rng()
-    for _ in range(40):
-        compose_scene(cat, FIELD, generator, client=(600, 300), mobs=(15, 15))
+    for _ in range(60):
+        compose_scene(cat, FIELD, generator, client=(600, 300), fill=FULL)
 
     blocks = [p for p in drawn.placements if p.mob.id == BLOCK]
     assert {(p.action, p.frame) for p in blocks} == {
@@ -626,12 +729,12 @@ def test_a_mobs_action_frame_and_facing_are_drawn_among_those_it_has(
 def test_mobs_are_drawn_in_a_random_order(cat: Catalogue, drawn: Drawn) -> None:
     generator = rng()
     orders: set[tuple[int, ...]] = set()
-    for _ in range(20):
+    for _ in range(30):
         before = len(drawn.placements)
-        compose_scene(cat, FIELD, generator, client=(600, 300), mobs=(4, 4))
+        compose_scene(cat, FIELD, generator, client=(600, 300), fill=FULL)
         orders.add(tuple(p.mob.id for p in drawn.placements[before:]))
 
-    assert len(orders) > 5
+    assert len(orders) > 3
 
 
 # --- labels ------------------------------------------------------------------
@@ -721,14 +824,12 @@ def test_a_label_under_the_floor_is_dropped_but_the_mob_stays_drawn(
     ]
     monkeypatch.setattr(compose, "_placements", lambda *_: placements)
 
-    scene = compose_scene(cat, FIELD, rng(), client=CLIENT, mobs=(2, 2))
+    scene = compose_scene(cat, FIELD, rng(), client=CLIENT)
 
     assert scene.labels == (Label("Block", (47, 40, 57, 50), 1.0),)
     assert at(scene.image, 46, 45) == rgb(BLUE)
 
-    lowered = compose_scene(
-        cat, FIELD, rng(), client=CLIENT, mobs=(2, 2), visibility_floor=0.1
-    )
+    lowered = compose_scene(cat, FIELD, rng(), client=CLIENT, visibility_floor=0.1)
     assert [label.visible for label in lowered.labels] == [
         pytest.approx(0.2),
         1.0,
@@ -756,7 +857,7 @@ def test_a_species_with_no_sprite_is_left_out_with_a_warning(
 ) -> None:
     with caplog.at_level(logging.WARNING, logger=compose.__name__):
         for seed in range(10):
-            compose_scene(cat, FIELD, rng(seed), client=(600, 300), mobs=(15, 15))
+            compose_scene(cat, FIELD, rng(seed), client=(600, 300), fill=FULL)
 
     assert GHOST not in {p.mob.id for p in drawn.placements}
     assert any(
@@ -767,30 +868,55 @@ def test_a_species_with_no_sprite_is_left_out_with_a_warning(
 
 # --- occluders ---------------------------------------------------------------
 
-BOTH = {"drops": (0, 5), "damage": (0, 5)}
-
 
 def calls(spy: MockType) -> list[tuple[int, int]]:
     """The `(x, y)` each call of a spied `drop` or `damage` was given."""
     found: list[tuple[int, int]] = []
     for call in spy.call_args_list:
-        found.append((call.args[2], call.args[3]))
+        found.append((call.args[-3], call.args[-2]))
     return found
+
+
+def every_site(*pool: str, per_site: tuple[int, int] = (1, 1)) -> Drops:
+    """A drop site per mob shown, of `per_site` drops of the pool, equally weighed."""
+    return Drops({key: 1.0 for key in pool}, (1.0, 1.0), per_site)
+
+
+@pytest.mark.parametrize(
+    ("make", "message"),
+    [
+        (lambda: Drops({}), "at least one drop"),
+        (lambda: Drops({"potion:1": 1.0}), "'meso:<id>' or 'item:<id>'"),
+        (lambda: Drops({MESO: 0.0}), "more than 0"),
+        (lambda: Drops({MESO: 1.0}, sites_per_mob=(1.0, 0.5)), "sites_per_mob"),
+        (lambda: Drops({MESO: 1.0}, per_site=(-1, 2)), "per_site"),
+        (lambda: Drops({MESO: 1.0}, spread=-1), "spread"),
+        (lambda: Damage(count=(3, 1)), "count"),
+        (lambda: Damage(values=(0, 10)), "start at 1"),
+        (lambda: Damage(sets=()), "at least one digit set"),
+    ],
+)
+def test_drops_and_damage_are_checked_when_made(
+    make: Callable[[], object], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        make()
 
 
 @pytest.mark.parametrize(
     ("given", "message"),
     [
-        ({"fog": (0, 1)}, "no occluder 'fog'; the occluders are drops, damage"),
-        ({"drops": (3, 1)}, r"occluders\['drops'\] must be \(min, max\)"),
-        ({"damage": (-1, 2)}, r"occluders\['damage'\] must be \(min, max\)"),
+        ({"drops": Drops({"item:12345": 1.0})}, "no sprite for drop 'item:12345'"),
+        ({"drops": Drops({"meso:9000004": 1.0})}, "no sprite for drop 'meso:9000004'"),
+        ({"damage": Damage()}, "no digit set 'NoCri0'"),
+        ({"damage": Damage(sets=("NoRed1",))}, "even number"),
     ],
 )
-def test_occluders_are_known_kinds_with_ordered_ranges(
-    cat: Catalogue, given: dict[str, tuple[int, int]], message: str
+def test_a_drop_or_digit_set_the_catalogue_lacks_is_refused(
+    cat: Catalogue, given: dict[str, object], message: str
 ) -> None:
     with pytest.raises(ValueError, match=message):
-        compose_scene(cat, FIELD, rng(), client=CLIENT, occluders=given)
+        compose_scene(cat, FIELD, rng(), client=CLIENT, **given)  # type: ignore[arg-type]
 
 
 def test_no_occluders_are_drawn_unless_asked_for(
@@ -800,67 +926,106 @@ def test_no_occluders_are_drawn_unless_asked_for(
     damage = mocker.spy(occluders, "damage")
 
     for seed in range(5):
-        compose_scene(cat, FIELD, rng(seed), client=(600, 300), mobs=(5, 5))
-        compose_scene(
-            cat, FIELD, rng(seed), client=(600, 300), mobs=(5, 5), occluders={}
-        )
+        compose_scene(cat, FIELD, rng(seed), client=(600, 300), fill=FULL)
 
     assert drops.call_count == damage.call_count == 0
     assert drawn.overlays == []
 
 
-def test_the_number_of_drops_is_drawn_from_the_range(
+def test_kill_sites_scale_with_the_mobs_shown(
     cat: Catalogue, mocker: MockerFixture
 ) -> None:
+    """The view is the whole map: a full map shows its 3 mobs."""
     spy = mocker.spy(occluders, "drop")
-    counts: set[int] = set()
     generator = rng()
-    for _ in range(40):
+
+    compose_scene(
+        cat, FIELD, generator, client=(600, 300), fill=FULL, drops=every_site(MESO)
+    )
+    assert spy.call_count == 3
+
+    compose_scene(
+        cat, FIELD, generator, client=(600, 300), fill=EMPTY, drops=every_site(MESO)
+    )
+    assert spy.call_count == 3
+
+
+def test_a_sites_drops_fan_out_spread_apart_on_its_ground(
+    cat: Catalogue, mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(occluders, "DROP_JITTER", 0)
+    spy = mocker.spy(occluders, "drop")
+    drops = Drops({MESO: 1.0}, (1 / 3, 1 / 3), (3, 3), spread=24)
+    generator = rng()
+
+    fans: list[list[tuple[int, int]]] = []
+    for _ in range(30):
         before = spy.call_count
-        compose_scene(
-            cat, FIELD, generator, client=(600, 300), occluders={"drops": (2, 4)}
-        )
-        counts.add(spy.call_count - before)
+        compose_scene(cat, FIELD, generator, client=(600, 300), fill=FULL, drops=drops)
+        fans.append(calls(spy)[before:])
 
-    assert counts == {2, 3, 4}
+    steps: list[list[int]] = []
+    for fan in fans:
+        assert len(fan) == 3
+        for x, y in fan:
+            assert y == ground(x)
+        steps.append([b - a for a, b in itertools.pairwise(x for x, _ in fan)])
+    # 24 apart, unless a spot's end clamps the fan closer.
+    assert all(0 <= step <= 24 for pair in steps for step in pair)
+    assert steps.count([24, 24]) > len(steps) // 2
 
 
-def test_drops_lie_on_a_spawns_foothold_within_its_range(
+def test_drops_lie_on_spots_overlapping_the_view(
     cat: Catalogue, mocker: MockerFixture
 ) -> None:
-    """The view is the whole map; spawns run over `[20, 500]`, as mobs do."""
+    """The view is the whole map; spots run over `[20, 500]`."""
     spy = mocker.spy(occluders, "drop")
     generator = rng()
-    for _ in range(20):
+    for _ in range(30):
         compose_scene(
-            cat, FIELD, generator, client=(600, 300), occluders={"drops": (5, 5)}
+            cat,
+            FIELD,
+            generator,
+            client=(600, 300),
+            fill=FULL,
+            drops=every_site(MESO, per_site=(2, 2)),
         )
 
     points = calls(spy)
-    assert len(points) == 100
+    assert len(points) == 180
     for x, y in points:
         assert 20 <= x <= 500
-        assert y == (250 if x <= 300 else round(250 - (x - 300) / 3))
+        assert y == ground(x)
     assert min(x for x, _ in points) < 100
     assert max(x for x, _ in points) > 400
 
 
-def test_a_drop_is_a_meso_frame_or_an_items_icon_never_a_cash_items(
-    cat: Catalogue,
-) -> None:
+def test_drops_come_only_from_the_pool_by_weight(cat: Catalogue) -> None:
     sprites = occluders.Sprites.read(cat)
     images = Images(cat.store.images)
     generator = rng()
 
-    drops = [occluders.drop(sprites, images, 100, 80, generator) for _ in range(60)]
+    green = sprites.pool(Drops({GREEN_ITEM: 1.0}))
+    mixed = sprites.pool(Drops({GREEN_ITEM: 3.0, MESO: 1.0}))
+    only_green = [occluders.drop(green, images, 100, 80, generator) for _ in range(30)]
+    both = [occluders.drop(mixed, images, 100, 80, generator) for _ in range(400)]
 
-    shapes = {(d.pixels.shape[1], d.pixels.shape[0]) for d in drops}
-    assert shapes == {(8, 8), (6, 6), (2, 6)}
-    colours = {tuple(int(c) for c in d.pixels[0, 0]) for d in drops}
-    assert colours == {GREEN, YELLOW}
+    assert {d.pixels.shape[:2] for d in only_green} == {(8, 8)}
+    shapes = [(d.pixels.shape[1], d.pixels.shape[0]) for d in both]
+    assert set(shapes) == {(8, 8), (6, 6), (2, 6)}
+    assert shapes.count((8, 8)) / len(shapes) == pytest.approx(0.75, abs=0.07)
     # Centred on x, the bottom on the ground: (-12, 8) in a 32-pixel slot.
-    icon = next(d for d in drops if d.pixels.shape[1] == 8)
+    icon = only_green[0]
     assert (icon.left, icon.top) == (96, 72)
+
+
+def test_a_cash_item_drops_when_the_pool_names_it(cat: Catalogue) -> None:
+    sprites = occluders.Sprites.read(cat)
+
+    ((frames, weight),) = sprites.pool(Drops({"item:5010000": 2.0}))
+
+    assert len(frames) == 1
+    assert weight == 2.0
 
 
 def test_a_drop_in_front_of_a_mob_counts_against_its_visible_one_behind_doesnt(
@@ -879,7 +1044,7 @@ def test_a_drop_in_front_of_a_mob_counts_against_its_visible_one_behind_doesnt(
     seen: set[float] = set()
     for seed in range(20):
         scene = compose_scene(
-            cat, FIELD, rng(seed), client=CLIENT, occluders={"drops": (1, 1)}
+            cat, FIELD, rng(seed), client=CLIENT, drops=every_site(GREEN_ITEM)
         )
         (label,) = scene.labels
         seen.add(label.visible)
@@ -924,7 +1089,9 @@ def test_a_damage_number_is_above_the_mobs_head(
     )
     spy = mocker.spy(occluders, "damage")
 
-    compose_scene(cat, FIELD, rng(), client=CLIENT, occluders={"damage": (3, 3)})
+    compose_scene(
+        cat, FIELD, rng(), client=CLIENT, damage=Damage((3, 3), sets=RED_ONLY)
+    )
 
     assert calls(spy) == [head] * 3
 
@@ -939,7 +1106,9 @@ def test_without_a_head_a_number_is_above_the_middle_of_its_opaque_top(
     )
     spy = mocker.spy(occluders, "damage")
 
-    compose_scene(cat, FIELD, rng(), client=CLIENT, occluders={"damage": (1, 1)})
+    compose_scene(
+        cat, FIELD, rng(), client=CLIENT, damage=Damage((1, 1), sets=RED_ONLY)
+    )
 
     assert calls(spy) == [(50, 55)]
 
@@ -958,7 +1127,7 @@ def test_damage_numbers_are_only_over_mobs_with_a_pixel_in_the_view(
 
     for seed in range(5):
         compose_scene(
-            cat, FIELD, rng(seed), client=CLIENT, occluders={"damage": (4, 4)}
+            cat, FIELD, rng(seed), client=CLIENT, damage=Damage((4, 4), sets=RED_ONLY)
         )
 
     assert calls(spy) == [(101, 76)] * 20
@@ -968,23 +1137,29 @@ def test_damage_numbers_need_a_drawn_mob(cat: Catalogue, mocker: MockerFixture) 
     spy = mocker.spy(occluders, "damage")
 
     compose_scene(
-        cat, FIELD, rng(), client=CLIENT, mobs=(0, 0), occluders={"damage": (3, 3)}
+        cat,
+        FIELD,
+        rng(),
+        client=CLIENT,
+        fill=EMPTY,
+        damage=Damage((3, 3), sets=RED_ONLY),
     )
 
     assert spy.call_count == 0
 
 
-def test_a_damage_number_is_a_large_first_digit_then_small_ones_centred_above(
+def test_a_damage_number_is_its_value_a_large_first_digit_then_small_ones(
     cat: Catalogue,
 ) -> None:
     """`NoRed1`'s digits are 16x14, `NoRed0`'s 12x10; they overlap by 8."""
     sprites = occluders.Sprites.read(cat)
+    pairs = sprites.pairs(Damage(sets=RED_ONLY))
     images = Images(cat.store.images)
     generator = rng()
     lengths: set[int] = set()
     rises: set[int] = set()
     for _ in range(200):
-        number = occluders.damage(sprites, images, 100, 80, generator)
+        number = occluders.damage(pairs, (50, 350), images, 100, 80, generator)
         lengths.add(len(number))
         shapes = [(d.pixels.shape[1], d.pixels.shape[0]) for d in number]
         assert shapes == [(16, 14)] + [(12, 10)] * (len(number) - 1)
@@ -996,49 +1171,34 @@ def test_a_damage_number_is_a_large_first_digit_then_small_ones_centred_above(
         width = 16 + 4 * (len(number) - 1)
         assert number[0].left == 100 - width // 2
 
-    assert lengths == set(range(1, occluders.DAMAGE_DIGITS + 1))
+    # 50 to 350: two or three digits, never one or four.
+    assert lengths == {2, 3}
     assert min(rises) >= 0
     assert max(rises) <= occluders.DAMAGE_RISE
     assert len(rises) > 30
 
 
-def test_digit_sets_pair_by_number_and_a_set_short_of_a_digit_is_left_out(
+def test_digit_sets_are_kept_by_name_and_one_short_of_a_digit_is_left_out(
     cat: Catalogue, mocker: MockerFixture
 ) -> None:
     full = cat.damage_digits()
     sprites = occluders.Sprites.read(cat)
-    assert len(sprites.digits) == 1
-    rest, first = sprites.digits[0]
+    assert set(sprites.digits) == {"NoRed0", "NoRed1"}
+    ((rest, first),) = sprites.pairs(Damage(sets=RED_ONLY))
     assert sorted(rest) == sorted(first) == list(range(10))
 
     mocker.patch.object(
         cat, "damage_digits", return_value=tuple(d for d in full if d.digit != 7)
     )
-    assert occluders.Sprites.read(cat).digits == []
-
-
-def test_occluders_the_catalogue_has_no_sprites_for_are_left_out_with_a_warning(
-    cat: Catalogue,
-    monkeypatch: pytest.MonkeyPatch,
-    mocker: MockerFixture,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    monkeypatch.setattr(occluders.Sprites, "read", lambda *_: occluders.Sprites())
-    spy = mocker.spy(occluders, "drop")
-
-    with caplog.at_level(logging.WARNING, logger=compose.__name__):
-        compose_scene(cat, FIELD, rng(), client=(600, 300), mobs=(3, 3), occluders=BOTH)
-
-    assert spy.call_count == 0
-    messages = [r.getMessage() for r in caplog.records]
-    assert any("no sprites for drops" in m for m in messages)
-    assert any("no sprites for damage" in m for m in messages)
+    assert occluders.Sprites.read(cat).digits == {}
 
 
 def test_the_same_seed_gives_the_same_occluded_scene(
     cat: Catalogue, mocker: MockerFixture
 ) -> None:
     spy = mocker.spy(occluders, "drop")
+    drops = Drops({GREEN_ITEM: 1.0, MESO: 1.0}, (1.0, 2.0), (1, 3))
+    damage = Damage((0, 5), (1, 999), RED_ONLY)
 
     def scenes(seed: int) -> list[tuple[bytes, tuple[Label, ...]]]:
         generator = rng(seed)
@@ -1046,7 +1206,7 @@ def test_the_same_seed_gives_the_same_occluded_scene(
             (scene.image.tobytes(), scene.labels)
             for scene in (
                 compose_scene(
-                    cat, FIELD, generator, client=CLIENT, mobs=(3, 8), occluders=BOTH
+                    cat, FIELD, generator, client=CLIENT, drops=drops, damage=damage
                 )
                 for _ in range(3)
             )
@@ -1072,7 +1232,7 @@ def test_the_same_seed_gives_the_same_scene_and_another_seed_another(
             (scene.image.tobytes(), scene.labels)
             for scene in (
                 compose_scene(
-                    cat, FIELD, generator, client=CLIENT, mobs=(3, 8), cameras=cameras
+                    cat, FIELD, generator, client=CLIENT, fill=FULL, cameras=cameras
                 )
                 for _ in range(3)
             )

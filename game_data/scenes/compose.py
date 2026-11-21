@@ -1,25 +1,34 @@
 """
-`compose_scene`: one synthetic client screen of a map, its mobs drawn on their
-spawns, and a label per mob.
+`compose_scene`: one synthetic client screen of a map, its mobs drawn near
+their spawn points, and a label per mob.
 
-**The view** is a camera of the `client`'s size. On an axis where the map's VR
-bounds are at least that size, its centre is drawn uniformly in the bounds,
-then clamped so the view stays inside them. On an axis where they are smaller,
-the map is centred and the rest is black, as the client shows it. The
-background is `render_map` at that camera, with every animated item at one
+**The mobs** are a map-wide population: a share of the map's mob spawn
+points, drawn in `fill`, gets one mob each, so there are never more mobs than
+spawn points. A mob is within `wander` pixels of its spawn point's `x`,
+clamped to its **spot**: the extent of the spawn's foothold chain (`prev` and
+`next`, walls skipped) inside `[rx0, rx1]`, so none hangs off a platform's
+edge. `y` is the height of the chain at `x` (`_ground`). A flying mob is
+raised by 0 to `FLY_LIFT` pixels, no higher than the view's top. Its action is
+drawn among those it has of `ACTIONS`, its frame uniformly, and its facing
+either way. They are drawn in a random order; the camera crops them.
+
+**The view** is a camera of the `client`'s size following a character
+(`scene_camera`): it stands at a point drawn on a spot, weighted by the spot's
+width, and the camera's centre is `CAMERA_ABOVE_FEET` pixels above it, off by
+up to `CAMERA_LAG` as when the character moves, then clamped so the view stays
+inside the VR bounds. A map with no spot draws the centre uniformly in the VR
+bounds instead (`draw_camera`). On an axis where the bounds are smaller than
+the view, the map is centred and the rest is black, as the client shows it.
+The background is `render_map` at that camera, with every animated item at one
 `frame` drawn for the scene, cropped to the view, over black.
 
-**The mobs.** Their number is drawn from `mobs`. Each comes from a spawn drawn
-uniformly among the map's `mob` spawns whose `[rx0, rx1]` overlaps the view's
-columns: its species, an `x` uniform in `[rx0, rx1]`, and `y` the height of its
-foothold at `x` (`_ground`). A flying mob is raised by 0 to `FLY_LIFT` pixels,
-no higher than the view's top. Its action is drawn among those it has of
-`ACTIONS`, its frame uniformly, and its facing either way. They are drawn in a
-random order.
-
-**Occluders** (`occluders`), each kind on when `occluders` gives it a count
-range: drops on the mobs' spawns, behind or in front of the mobs, and damage
-numbers above the mobs with a pixel in the view, in front.
+**Occluders**, each kind on when given: `drops` (`occluders.Drops`) lie at
+kill sites, behind or in front of the mobs at random. A site's count is
+`sites_per_mob` times the mobs with a pixel in the view, rounded; each is on a
+spot overlapping the view, `x` uniform in its columns there, with `per_site`
+drops fanned `spread` pixels apart on its ground. `damage`
+(`occluders.Damage`) numbers are above mobs with a pixel in the view, in
+front.
 
 **Labels** (`draw_mobs`). A mob's box is the bounds of its drawn sprite's
 opaque pixels (alpha > 0) inside the view, not its `lt`/`rb` hitbox.
@@ -33,7 +42,7 @@ same catalogue, map, arguments and seed give the same scene.
 """
 
 import logging
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -53,18 +62,29 @@ from game_data.render import VIEWPORT, Camera, Images, render_map
 from game_data.render.placement import top_left
 
 from . import occluders as occ
-from .occluders import Overlay, Sprites
+from .occluders import Damage, Drops, Overlay, Sprites, check_range
 
-SCENES_VERSION: Final = 2
+SCENES_VERSION: Final = 3
 """Bumped whenever the same arguments and seed would give another scene."""
 
 ACTIONS: Final = ("stand", "move", "hit1", "die1")
 """The actions a mob is drawn in, among those it has."""
 
-MOBS: Final = (0, 15)
+FILL: Final = (0.3, 1.0)
+"""The share of a map's mob spawn points that has a mob, drawn per scene."""
+
+WANDER: Final = 120
+"""The most a mob is from its spawn point's `x`, in pixels."""
+
 VISIBILITY_FLOOR: Final = 0.3
 FLY_LIFT: Final = 150
 """The most a flying mob is raised above its foothold, in pixels."""
+
+CAMERA_ABOVE_FEET: Final = 60
+"""How far above the followed character's feet the camera's centre is."""
+
+CAMERA_LAG: Final = (120, 40)
+"""The most the camera's centre is off the character, `(x, y)`, in pixels."""
 
 FRAMES: Final = 720720
 """
@@ -125,6 +145,18 @@ class Placement:
     flip: bool
 
 
+@dataclass(frozen=True, slots=True)
+class Spot:
+    """
+    Where a spawn's mob can be: `[left, right]` on its foothold chain, in
+    virtual coordinates.
+    """
+
+    spawn: Spawn
+    left: int
+    right: int
+
+
 def class_name(name: str) -> str:
     """
     A mob's class, the form the bot compares a model's classes with: its name
@@ -152,51 +184,67 @@ def compose_scene(
     rng: np.random.Generator,
     *,
     client: tuple[int, int] = VIEWPORT,
-    mobs: tuple[int, int] = MOBS,
+    fill: tuple[float, float] = FILL,
+    wander: int = WANDER,
     visibility_floor: float = VISIBILITY_FLOOR,
     cameras: int | None = None,
-    occluders: Mapping[str, tuple[int, int]] | None = None,
+    drops: Drops | None = None,
+    damage: Damage | None = None,
 ) -> Scene:
     """
     One synthetic screen of a map, and its labels.
 
     :param map: Its name or ID, as `Catalogue.map` takes.
     :param client: The screen's width and height.
-    :param mobs: The fewest and most mobs drawn, both included.
+    :param fill: The fewest and most of the map's mob spawn points that have
+        a mob, as shares from 0 to 1.
+    :param wander: The most a mob is from its spawn point's `x`, in pixels.
     :param visibility_floor: A label whose `visible` is under it is dropped.
     :param cameras: `None` renders the background for each scene. An integer
         `n` renders `n` cameras of the map once, drawn from `rng` the first
         time this `rng` composes the map, and each scene picks one of them.
-    :param occluders: The occluders drawn, by kind (`occluders.KINDS`:
-        `drops`, `damage`), each with the fewest and most drawn, both
-        included. A kind left out isn't drawn; `None` draws none.
+    :param drops: The map's drops; `None` draws none.
+    :param damage: The map's damage numbers; `None` draws none.
     :raises LookupError: As `Catalogue.map` does.
     :raises SceneError: Two species of the map share a class name.
     :raises RenderError: As `render_map` does.
-    :raises ValueError: `mobs` isn't `0 <= min <= max`, `cameras` isn't
-        positive, or `occluders` names another kind or a range out of order.
+    :raises ValueError: `fill` isn't `0 <= min <= max <= 1`, `wander` is
+        negative, `cameras` isn't positive, or the catalogue has no sprite for
+        a drop or digit set asked for.
     """
-    low, high = mobs
-    if not 0 <= low <= high:
-        raise ValueError(f"mobs must be (min, max) with 0 <= min <= max, not {mobs}")
+    check_range("fill", fill)
+    if fill[1] > 1:
+        raise ValueError(f"fill is a share of the spawn points, at most 1, not {fill}")
+    if wander < 0:
+        raise ValueError(f"wander can't be negative, not {wander}")
     if cameras is not None and cameras < 1:
         raise ValueError(f"cameras must be positive, not {cameras}")
-    occluders = occluders or {}
-    occ.check(occluders)
     data = cat.map(map)
     state = _state(cat, data, rng, client, cameras)
+    pool = None if drops is None else state.sprites(cat).pool(drops)
+    pairs = None if damage is None else state.sprites(cat).pairs(damage)
     if state.views:
         camera, view = state.views[int(rng.integers(len(state.views)))]
         view = view.copy()
     else:
-        camera = draw_camera(data.vr, client, rng)
+        camera = scene_camera(data, state.spots, client, rng)
         view = _view(cat, data, camera, int(rng.integers(FRAMES)), state.images)
-    count = int(rng.integers(low, high + 1))
-    placements = _placements(data, state.species, camera, count, rng)
-    behind, over = _occluders(cat, data, state, camera, placements, occluders, rng)
+    placements = _placements(data, state, camera, fill, wander, rng)
+    shown = [p for p in placements if _in_view(p, state.images, camera)]
+    behind: list[Overlay] = []
+    front: list[Overlay] = []
+    if drops is not None and pool is not None:
+        for overlay in _drops(data, state, camera, len(shown), drops, pool, rng):
+            (front if rng.integers(2) else behind).append(overlay)
+    if damage is not None and pairs is not None and shown:
+        low, high = damage.count
+        for _ in range(int(rng.integers(low, high + 1))):
+            placement = shown[int(rng.integers(len(shown)))]
+            x, y = _head(placement, state.images)
+            front += occ.damage(pairs, damage.values, state.images, x, y, rng)
     for overlay in behind:
         _paste(view, overlay.pixels, overlay.left, overlay.top)
-    drawn = draw_mobs(view, placements, state.images, over)
+    drawn = draw_mobs(view, placements, state.images, front)
     labels = tuple(
         label
         for label in drawn
@@ -264,8 +312,15 @@ class _State:
 
     images: Images
     species: dict[int, MobData]
+    spots: list[Spot]
     views: list[tuple[Camera, np.ndarray]]
-    sprites: Sprites | None = None
+    read: Sprites | None = None
+
+    def sprites(self, cat: Catalogue) -> Sprites:
+        """The catalogue's occluder sprites, read once."""
+        if self.read is None:
+            self.read = Sprites.read(cat)
+        return self.read
 
 
 type _Key = tuple[str, str, int, tuple[int, int], int | None]
@@ -298,9 +353,10 @@ def _state(
     if found is not None:
         return found
     images = Images(cat.store.images)
-    state = _State(images, _species(cat, data), [])
+    species = _species(cat, data)
+    state = _State(images, species, spots(data, species), [])
     for _ in range(cameras or 0):
-        camera = draw_camera(data.vr, client, rng)
+        camera = scene_camera(data, state.spots, client, rng)
         frame = int(rng.integers(FRAMES))
         state.views.append((camera, _view(cat, data, camera, frame, images)))
     states[key] = state
@@ -353,13 +409,88 @@ def _actions(mob: MobData) -> dict[str, list[int]]:
     return {action: found[action] for action in ACTIONS if action in found}
 
 
+def spots(data: MapData, species: dict[int, MobData]) -> list[Spot]:
+    """
+    The spot of each of the map's mob spawns of `species`, in the map's
+    order: its foothold chain's extent (walls skipped) inside `[rx0, rx1]`.
+    A spawn whose foothold the map lacks, or whose chain and range don't
+    meet, is its own `x` alone.
+    """
+    own = {f.id: f for f in data.footholds if f.source == "map"}
+    found: list[Spot] = []
+    for spawn in data.spawns:
+        if spawn.kind != "mob" or spawn.id not in species:
+            continue
+        low, high = min(spawn.rx0, spawn.rx1), max(spawn.rx0, spawn.rx1)
+        chain = _chain_extent(own, spawn.foothold)
+        if chain is not None and max(chain[0], low) <= min(chain[1], high):
+            found.append(Spot(spawn, max(chain[0], low), min(chain[1], high)))
+        else:
+            found.append(Spot(spawn, spawn.x, spawn.x))
+    return found
+
+
+def _chain_extent(own: dict[int, Foothold], start_id: int) -> tuple[int, int] | None:
+    """The x extent of the non-wall footholds chained to `start_id`."""
+    start = own.get(start_id)
+    if start is None:
+        return None
+    seen = {start.id}
+    queue = [start]
+    low: int | None = None
+    high: int | None = None
+    while queue:
+        foothold = queue.pop()
+        if foothold.x1 != foothold.x2:
+            left, right = sorted((foothold.x1, foothold.x2))
+            low = left if low is None else min(low, left)
+            high = right if high is None else max(high, right)
+        for link in (foothold.prev, foothold.next):
+            found = own.get(link) if link else None
+            if found is not None and found.id not in seen:
+                seen.add(found.id)
+                queue.append(found)
+    return None if low is None or high is None else (low, high)
+
+
+def scene_camera(
+    data: MapData,
+    spots: Sequence[Spot],
+    client: tuple[int, int],
+    rng: np.random.Generator,
+) -> Camera:
+    """
+    A scene's camera, of the client's size, following a character standing
+    on one of the `spots` (drawn by their width): its centre
+    `CAMERA_ABOVE_FEET` above the feet and up to `CAMERA_LAG` off, clamped to
+    the VR bounds. `draw_camera` when there's no spot.
+    """
+    if not spots:
+        return draw_camera(data.vr, client, rng)
+    widths = np.array([spot.right - spot.left + 1 for spot in spots], dtype=float)
+    spot = spots[int(rng.choice(len(spots), p=widths / widths.sum()))]
+    x = int(rng.integers(spot.left, spot.right + 1))
+    y = _ground(data.footholds, spot.spawn, x)
+    lag_x, lag_y = CAMERA_LAG
+    centre_x = x + int(rng.integers(-lag_x, lag_x + 1))
+    centre_y = y - CAMERA_ABOVE_FEET + int(rng.integers(-lag_y, lag_y + 1))
+    width, height = client
+    centred = Camera.centred(data.vr, client)
+    return Camera(
+        _clamped(centre_x, data.vr.left, data.vr.right, width, centred.left),
+        _clamped(centre_y, data.vr.top, data.vr.bottom, height, centred.top),
+        width,
+        height,
+    )
+
+
 def draw_camera(
     bounds: Bounds, client: tuple[int, int], rng: np.random.Generator
 ) -> Camera:
     """
-    A scene's camera, of the client's size: on each axis where the VR bounds
-    are at least that size, its centre drawn uniformly in them and clamped so
-    it stays inside; on one where they're smaller, the map centred.
+    A camera of the client's size: on each axis where the VR bounds are at
+    least that size, its centre drawn uniformly in them and clamped so it
+    stays inside; on one where they're smaller, the map centred.
     """
     width, height = client
     centred = Camera.centred(bounds, client)
@@ -379,6 +510,14 @@ def _axis(
     clamped to keep `size` inside them; `centred` when they're narrower.
     """
     centre = int(rng.integers(low, max(high, low + 1)))
+    return _clamped(centre, low, high, size, centred)
+
+
+def _clamped(centre: int, low: int, high: int, size: int, centred: int) -> int:
+    """
+    The camera's start on one axis for a centre, clamped to keep `size`
+    inside `[low, high)`; `centred` when they're narrower.
+    """
     if high - low < size:
         return centred
     half = size // 2
@@ -395,40 +534,27 @@ def _view(
     return view
 
 
-def _spawns(data: MapData, species: dict[int, MobData], camera: Camera) -> list[Spawn]:
-    """The map's spawns of `species` whose `[rx0, rx1]` overlaps the view."""
-    right = camera.left + camera.width
-    return [
-        spawn
-        for spawn in data.spawns
-        if spawn.kind == "mob"
-        and spawn.id in species
-        and min(spawn.rx0, spawn.rx1) < right
-        and max(spawn.rx0, spawn.rx1) >= camera.left
-    ]
-
-
-def _on_spawn(data: MapData, spawn: Spawn, rng: np.random.Generator) -> tuple[int, int]:
-    """A point on the spawn's ground, `x` uniform in its `[rx0, rx1]`."""
-    x = int(rng.integers(min(spawn.rx0, spawn.rx1), max(spawn.rx0, spawn.rx1) + 1))
-    return x, _ground(data.footholds, spawn, x)
-
-
 def _placements(
     data: MapData,
-    species: dict[int, MobData],
+    state: _State,
     camera: Camera,
-    count: int,
+    fill: tuple[float, float],
+    wander: int,
     rng: np.random.Generator,
 ) -> list[Placement]:
-    spawns = _spawns(data, species, camera)
-    if not spawns:
+    """A mob near each of a `fill` share of the spots, in a random order."""
+    if not state.spots:
         return []
+    share = float(rng.uniform(fill[0], fill[1]))
+    count = round(len(state.spots) * share)
+    chosen = rng.choice(len(state.spots), size=count, replace=False)
     placements: list[Placement] = []
-    for _ in range(count):
-        spawn = spawns[int(rng.integers(len(spawns)))]
-        mob = species[spawn.id]
-        x, y = _on_spawn(data, spawn, rng)
+    for index in chosen:
+        spot = state.spots[int(index)]
+        mob = state.species[spot.spawn.id]
+        x = spot.spawn.x + int(rng.integers(-wander, wander + 1))
+        x = min(max(x, spot.left), spot.right)
+        y = _ground(data.footholds, spot.spawn, x)
         if mob.fly_speed is not None:
             y = max(y - int(rng.integers(FLY_LIFT + 1)), camera.top)
         actions = _actions(mob)
@@ -443,68 +569,42 @@ def _placements(
     return placements
 
 
-def _occluders(
-    cat: Catalogue,
+def _drops(
     data: MapData,
     state: _State,
     camera: Camera,
-    placements: Sequence[Placement],
-    occluders: Mapping[str, tuple[int, int]],
+    shown: int,
+    drops: Drops,
+    pool: occ.Pool,
     rng: np.random.Generator,
-) -> tuple[list[Overlay], list[Overlay]]:
+) -> list[Overlay]:
     """
-    The occluders behind the mobs and those in front of them: the drops, then
-    the damage numbers, each kind when `occluders` has it.
+    The drops at the scene's kill sites: `sites_per_mob` per mob shown, each
+    on a spot overlapping the view, its `per_site` drops fanned `spread`
+    apart on the spot's ground.
     """
-    behind: list[Overlay] = []
-    front: list[Overlay] = []
-    if not occluders:
-        return behind, front
-    sprites = _sprites(cat, data, state, occluders)
-    if "drops" in occluders:
-        low, high = occluders["drops"]
-        count = int(rng.integers(low, high + 1))
-        spawns = _spawns(data, state.species, camera)
-        if spawns and sprites.has("drops"):
-            for _ in range(count):
-                spawn = spawns[int(rng.integers(len(spawns)))]
-                x, y = _on_spawn(data, spawn, rng)
-                overlay = occ.drop(
-                    sprites, state.images, x - camera.left, y - camera.top, rng
-                )
-                (front if rng.integers(2) else behind).append(overlay)
-    if "damage" in occluders:
-        low, high = occluders["damage"]
-        count = int(rng.integers(low, high + 1))
-        drawn = [p for p in placements if _in_view(p, state.images, camera)]
-        if drawn and sprites.has("damage"):
-            for _ in range(count):
-                placement = drawn[int(rng.integers(len(drawn)))]
-                x, y = _head(placement, state.images)
-                front += occ.damage(sprites, state.images, x, y, rng)
-    return behind, front
-
-
-def _sprites(
-    cat: Catalogue,
-    data: MapData,
-    state: _State,
-    occluders: Mapping[str, tuple[int, int]],
-) -> Sprites:
-    """
-    The catalogue's occluder sprites, read once per state, with a warning for
-    each kind asked for that the catalogue has none of.
-    """
-    if state.sprites is None:
-        state.sprites = Sprites.read(cat)
-        for kind in occluders:
-            if not state.sprites.has(kind):
-                _log.warning(
-                    "map %s: the catalogue has no sprites for %s; none are drawn",
-                    data.id,
-                    kind,
-                )
-    return state.sprites
+    right = camera.left + camera.width - 1
+    near = [s for s in state.spots if s.left <= right and s.right >= camera.left]
+    low, high = drops.sites_per_mob
+    sites = round(shown * float(rng.uniform(low, high)))
+    if not near:
+        return []
+    found: list[Overlay] = []
+    for _ in range(sites):
+        spot = near[int(rng.integers(len(near)))]
+        centre = int(
+            rng.integers(max(spot.left, camera.left), min(spot.right, right) + 1)
+        )
+        count = int(rng.integers(drops.per_site[0], drops.per_site[1] + 1))
+        for n in range(count):
+            offset = round((n - (count - 1) / 2) * drops.spread)
+            jitter = int(rng.integers(-occ.DROP_JITTER, occ.DROP_JITTER + 1))
+            x = min(max(centre + offset + jitter, spot.left), spot.right)
+            y = _ground(data.footholds, spot.spawn, x)
+            found.append(
+                occ.drop(pool, state.images, x - camera.left, y - camera.top, rng)
+            )
+    return found
 
 
 def _in_view(placement: Placement, images: Images, camera: Camera) -> bool:

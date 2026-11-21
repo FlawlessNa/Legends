@@ -2,23 +2,28 @@
 Occluders: what the client draws over mobs, laid out as `Overlay`s for
 `draw_mobs` to draw and count against each mob's `visible`.
 
-- **Drops** lie on a mob spawn's foothold, `x` uniform in its `[rx0, rx1]`.
-  Each is a meso, a `MESO_SHARE` of the time, at a frame of its spin drawn
-  uniformly; or an item's icon, drawn uniformly among the items of
-  `DROP_CATEGORIES`. An icon is laid out as in an inventory slot of
-  `DROP_SLOT` pixels, centred on `x` with its bottom on the ground, which is
-  where its `origin` puts it. Each drop is behind or in front of the mobs at
-  random.
-- **Damage numbers** are above the head of a mob with a pixel in the view:
-  its frame's `head` when it has one, else the middle of its opaque pixels'
-  top. A number's bottom is
-  raised 0 to `DAMAGE_RISE` pixels above that, and it is centred on it. It
-  has 1 to `DAMAGE_DIGITS` digits, its first never 0, drawn from a pair of
-  digit sets of one of `DAMAGE_SETS`: `<set><2k + 1>` for its first digit,
-  the larger, and `<set><2k>` for the rest. Digits overlap by
+Each kind is configured per map, because what a map shows differs: the
+client holds no drop tables (drops are the server's), and the damage players
+deal depends on their level.
+
+- **Drops** (`Drops`) come from the map's `pool`: `meso:<id>` and
+  `item:<id>` keys, each with a weight. A meso is drawn at a frame of its spin
+  drawn uniformly; an item as its icon. Either is laid out as in an inventory
+  slot of `DROP_SLOT` pixels, centred on its `x` with its bottom on the
+  ground, which is where its `origin` puts it. Where drops lie is
+  `compose_scene`'s: at kill sites, `sites_per_mob` per mob in view, each of
+  `per_site` drops `spread` pixels apart, each `DROP_JITTER` pixels at most
+  off its place.
+- **Damage numbers** (`Damage`) are above the head of a mob with a pixel in
+  the view: its frame's `head` when it has one, else the middle of its opaque
+  pixels' top. A number's bottom is raised 0 to `DAMAGE_RISE` pixels above
+  that, and it is centred on it. Its value is drawn in `values`, its digits
+  from one of `sets`: a set `<stem><2k>` draws every digit but the first,
+  which its partner `<stem><2k + 1>` draws larger. Digits overlap by
   `DIGIT_OVERLAP` pixels. Numbers are always in front.
 
-The constants are first guesses, to be judged by eye against real screens.
+The layout constants are first guesses, to be judged by eye against real
+screens.
 """
 
 from collections.abc import Mapping, Sequence
@@ -31,21 +36,93 @@ from game_data.archive import Pixels
 from game_data.catalogue import Catalogue
 from game_data.render import Images
 
-KINDS: Final = ("drops", "damage")
-"""The occluders `compose_scene` can draw, each turned on by a count range."""
-
-DROP_CATEGORIES: Final = ("Consume", "Etc", "Install")
-"""The item categories drops are drawn among: those mobs drop. Not `Cash`."""
-
-MESO_SHARE: Final = 0.5
 DROP_SLOT: Final = 32
+DROP_JITTER: Final = 3
+"""The most a drop strays from its place in a kill site's fan, in pixels."""
 
-DAMAGE_SETS: Final = ("NoRed", "NoCri")
-"""The digit sets of damage dealt to a mob: a normal hit and a critical one."""
+DAMAGE_SETS: Final = ("NoRed0", "NoCri0")
+"""
+The client's default digit sets of damage dealt to a mob, a normal hit and a
+critical one, with their partners `NoRed1` and `NoCri1`. The others (`NoRed2`,
+`NoCri2`...) are skins.
+"""
 
-DAMAGE_DIGITS: Final = 6
 DAMAGE_RISE: Final = 60
 DIGIT_OVERLAP: Final = 8
+
+
+def check_range(name: str, value: Sequence[float]) -> None:
+    """
+    :raises ValueError: `value` isn't `(min, max)` with `0 <= min <= max`.
+    """
+    if len(value) != 2 or not 0 <= value[0] <= value[1]:
+        raise ValueError(
+            f"{name} must be (min, max) with 0 <= min <= max, not {tuple(value)}"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class Drops:
+    """
+    A map's drops.
+
+    :ivar pool: What drops, by `meso:<id>` or `item:<id>`, each with its
+        weight. The weights needn't add up to 1.
+    :ivar sites_per_mob: The fewest and most kill sites per mob with a pixel
+        in the view; their number is that times the mobs, rounded.
+    :ivar per_site: The fewest and most drops at one kill site.
+    :ivar spread: How far apart a site's drops lie, in pixels.
+    :raises ValueError: The pool is empty, a key isn't `meso:<id>` or
+        `item:<id>`, a weight isn't positive, a range is out of order, or
+        `spread` is negative.
+    """
+
+    pool: Mapping[str, float]
+    sites_per_mob: tuple[float, float] = (0.0, 0.8)
+    per_site: tuple[int, int] = (1, 3)
+    spread: int = 24
+
+    def __post_init__(self) -> None:
+        if not self.pool:
+            raise ValueError("a drop pool needs at least one drop")
+        for key, weight in self.pool.items():
+            kind, _, ident = key.partition(":")
+            if kind not in ("meso", "item") or not ident.isdigit():
+                raise ValueError(f"a drop is 'meso:<id>' or 'item:<id>', not {key!r}")
+            if not weight > 0:
+                raise ValueError(f"drop {key!r} must weigh more than 0, not {weight}")
+        check_range("drops' sites_per_mob", self.sites_per_mob)
+        check_range("drops' per_site", self.per_site)
+        if self.spread < 0:
+            raise ValueError(f"drops' spread can't be negative, not {self.spread}")
+
+
+@dataclass(frozen=True, slots=True)
+class Damage:
+    """
+    A map's damage numbers.
+
+    :ivar count: The fewest and most numbers per scene.
+    :ivar values: The smallest and largest number drawn.
+    :ivar sets: The digit sets drawn among, each `<stem><2k>`, its larger
+        first digits being `<stem><2k + 1>`.
+    :raises ValueError: A range is out of order, `values` starts under 1, or
+        `sets` is empty.
+    """
+
+    count: tuple[int, int] = (0, 3)
+    values: tuple[int, int] = (1, 9999)
+    sets: tuple[str, ...] = DAMAGE_SETS
+
+    def __post_init__(self) -> None:
+        check_range("damage's count", self.count)
+        check_range("damage's values", self.values)
+        if self.values[0] < 1:
+            raise ValueError(
+                f"damage's values must start at 1 or more, not {self.values}"
+            )
+        if not self.sets:
+            raise ValueError("damage needs at least one digit set")
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,9 +135,21 @@ class Overlay:
 
 
 @dataclass(frozen=True, slots=True)
-class _Sprite:
+class Sprite:
+    """An occluder's frame: its image's hash and its origin."""
+
     image: str
     origin: tuple[int, int]
+
+
+type Digits = dict[int, Sprite]
+"""A digit set, by digit."""
+
+type Pool = list[tuple[list[Sprite], float]]
+"""A drop pool resolved to sprites: each drop's frames, with its weight."""
+
+type Pairs = list[tuple[Digits, Digits]]
+"""Digit sets resolved to sprites: each `(rest, first)`."""
 
 
 @dataclass(slots=True)
@@ -68,81 +157,91 @@ class Sprites:
     """
     The catalogue's occluder sprites that have an image.
 
-    :ivar items: The icons of `DROP_CATEGORIES`' items.
-    :ivar mesos: Each meso sprite's frames.
-    :ivar digits: Each pair of digit sets, `(rest, first)`, each by digit.
+    :ivar items: Each item's icon, by item ID.
+    :ivar mesos: Each meso sprite's frames, by its ID.
+    :ivar digits: Each digit set with all ten digits, by name.
     """
 
-    items: list[_Sprite] = field(default_factory=list[_Sprite])
-    mesos: list[list[_Sprite]] = field(default_factory=list[list[_Sprite]])
-    digits: list[tuple[dict[int, _Sprite], dict[int, _Sprite]]] = field(
-        default_factory=list[tuple[dict[int, _Sprite], dict[int, _Sprite]]]
-    )
+    items: dict[int, Sprite] = field(default_factory=dict[int, Sprite])
+    mesos: dict[int, list[Sprite]] = field(default_factory=dict[int, list[Sprite]])
+    digits: dict[str, Digits] = field(default_factory=dict[str, Digits])
 
     @classmethod
     def read(cls, cat: Catalogue) -> Sprites:
         found = cls()
-        found.items = [
-            _Sprite(icon.image, (icon.origin_x, icon.origin_y))
+        found.items = {
+            icon.item: Sprite(icon.image, (icon.origin_x, icon.origin_y))
             for icon in cat.item_icons()
-            if icon.category in DROP_CATEGORIES and icon.image is not None
-        ]
-        mesos: dict[int, list[_Sprite]] = {}
+            if icon.image is not None
+        }
         for frame in cat.meso_frames():
             if frame.image is not None:
-                mesos.setdefault(frame.meso, []).append(
-                    _Sprite(frame.image, (frame.origin_x, frame.origin_y))
+                found.mesos.setdefault(frame.meso, []).append(
+                    Sprite(frame.image, (frame.origin_x, frame.origin_y))
                 )
-        found.mesos = list(mesos.values())
-        sets: dict[str, dict[int, _Sprite]] = {}
+        sets: dict[str, Digits] = {}
         for digit in cat.damage_digits():
             if digit.image is not None:
-                sets.setdefault(digit.digit_set, {})[digit.digit] = _Sprite(
+                sets.setdefault(digit.digit_set, {})[digit.digit] = Sprite(
                     digit.image, (digit.origin_x, digit.origin_y)
                 )
-        whole = {name: digits for name, digits in sets.items() if len(digits) == 10}
-        for stem in DAMAGE_SETS:
-            for pair in range(len(whole)):
-                rest = whole.get(f"{stem}{2 * pair}")
-                first = whole.get(f"{stem}{2 * pair + 1}")
-                if rest is not None and first is not None:
-                    found.digits.append((rest, first))
+        found.digits = {name: d for name, d in sets.items() if len(d) == 10}
         return found
 
-    def has(self, kind: str) -> bool:
-        """Whether there is anything to draw of `kind`."""
-        return bool(self.items or self.mesos) if kind == "drops" else bool(self.digits)
+    def pool(self, drops: Drops) -> Pool:
+        """
+        The pool's sprites and weights, in its order: a meso's frames, or an
+        item's icon alone.
 
+        :raises ValueError: The catalogue has no sprite for a drop, naming the
+            first.
+        """
+        found: Pool = []
+        for key, weight in drops.pool.items():
+            kind, _, ident = key.partition(":")
+            if kind == "meso":
+                frames = self.mesos.get(int(ident), [])
+            else:
+                icon = self.items.get(int(ident))
+                frames = [] if icon is None else [icon]
+            if not frames:
+                raise ValueError(f"the catalogue has no sprite for drop {key!r}")
+            found.append((frames, weight))
+        return found
 
-def check(occluders: Mapping[str, tuple[int, int]]) -> None:
-    """
-    :raises ValueError: A kind isn't one of `KINDS`, or its range isn't
-        `0 <= min <= max`.
-    """
-    for kind, (low, high) in occluders.items():
-        if kind not in KINDS:
-            raise ValueError(
-                f"no occluder {kind!r}; the occluders are {', '.join(KINDS)}"
-            )
-        if not 0 <= low <= high:
-            raise ValueError(
-                f"occluders[{kind!r}] must be (min, max) with 0 <= min <= max, not "
-                f"{(low, high)}"
-            )
+    def pairs(self, damage: Damage) -> Pairs:
+        """
+        Each of the damage's sets with its partner, `(rest, first)`.
+
+        :raises ValueError: A set isn't named `<stem><even number>`, or it or
+            its partner isn't in the catalogue with all ten digits.
+        """
+        found: Pairs = []
+        for name in damage.sets:
+            stem = name.rstrip("0123456789")
+            number = name[len(stem) :]
+            if not stem or not number or int(number) % 2:
+                raise ValueError(
+                    "a damage set is named <stem><even number>, such as NoRed0, "
+                    f"not {name!r}"
+                )
+            partner = f"{stem}{int(number) + 1}"
+            for needed in (name, partner):
+                if needed not in self.digits:
+                    raise ValueError(
+                        f"the catalogue has no digit set {needed!r} with all ten digits"
+                    )
+            found.append((self.digits[name], self.digits[partner]))
+        return found
 
 
 def drop(
-    sprites: Sprites, images: Images, x: int, y: int, rng: np.random.Generator
+    pool: Pool, images: Images, x: int, y: int, rng: np.random.Generator
 ) -> Overlay:
-    """A drop on the ground at view pixel `(x, y)`; `sprites` has one."""
-    meso = bool(sprites.mesos) and (
-        not sprites.items or bool(rng.random() < MESO_SHARE)
-    )
-    if meso:
-        frames = sprites.mesos[int(rng.integers(len(sprites.mesos)))]
-        sprite = frames[int(rng.integers(len(frames)))]
-    else:
-        sprite = sprites.items[int(rng.integers(len(sprites.items)))]
+    """One drop of the `pool` on the ground at view pixel `(x, y)`."""
+    weights = np.array([weight for _, weight in pool], dtype=float)
+    frames = pool[int(rng.choice(len(pool), p=weights / weights.sum()))][0]
+    sprite = frames[int(rng.integers(len(frames)))]
     origin_x, origin_y = sprite.origin
     return Overlay(
         images.get(sprite.image), x - DROP_SLOT // 2 - origin_x, y - origin_y
@@ -150,18 +249,19 @@ def drop(
 
 
 def damage(
-    sprites: Sprites, images: Images, x: int, y: int, rng: np.random.Generator
+    pairs: Pairs,
+    values: tuple[int, int],
+    images: Images,
+    x: int,
+    y: int,
+    rng: np.random.Generator,
 ) -> list[Overlay]:
     """
-    A damage number above view pixel `(x, y)`, one overlay per digit, left to
-    right; `sprites` has digits.
+    A damage number above view pixel `(x, y)`, its value drawn in `values`,
+    its digits from one of the `pairs`: one overlay per digit, left to right.
     """
-    rest, first = sprites.digits[int(rng.integers(len(sprites.digits)))]
-    count = int(rng.integers(1, DAMAGE_DIGITS + 1))
-    digits = [
-        int(rng.integers(1, 10)),
-        *(int(d) for d in rng.integers(10, size=count - 1)),
-    ]
+    rest, first = pairs[int(rng.integers(len(pairs)))]
+    digits = [int(d) for d in str(int(rng.integers(values[0], values[1] + 1)))]
     bottom = y - int(rng.integers(DAMAGE_RISE + 1))
     drawn = [
         (images.get(sprite.image), sprite.origin)
@@ -170,7 +270,7 @@ def damage(
         )
     ]
     widths = [pixels.shape[1] for pixels, _ in drawn]
-    left = x - (sum(widths) - DIGIT_OVERLAP * (count - 1)) // 2
+    left = x - (sum(widths) - DIGIT_OVERLAP * (len(digits) - 1)) // 2
     overlays: list[Overlay] = []
     for (pixels, (_, origin_y)), width in zip(drawn, widths, strict=True):
         overlays.append(Overlay(pixels, left, bottom - origin_y))
