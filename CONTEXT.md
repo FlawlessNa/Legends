@@ -589,8 +589,9 @@ _Avoid_: Training skill, main skill (both were the one skill the retired
 The box an Attack hits, around the character's feet, in virtual px, as the
 client stores it: facing left, `x` to the right and `y` down, mirrored when the
 character faces right. A mob is in Reach when its detection box overlaps the box
-by at least one pixel. A Reach is two-sided when it is symmetric about the
-character, and one-sided otherwise.
+by at least one client pixel on each axis, whether the boxes are in client or
+virtual px. A Reach is two-sided when it is symmetric about the character, and
+one-sided otherwise.
 _Avoid_: Range, attack range - `range` is a client field of some skills that is
 not the Reach, and nobody measures a Reach on screen.
 

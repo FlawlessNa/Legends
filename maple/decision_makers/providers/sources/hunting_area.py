@@ -6,8 +6,11 @@ seen least recently, and away from players who have settled.
 **The mobs it counts** are the ones found on the current frame, as boxes in
 virtual px placed through that frame's Camera (a box, not its feet: a narrow
 band reach at chest height would count no mob on the character's own platform),
-whose feet stand inside the rectangle (`HUNTING_AREA`). Once someone has
-settled (`AREA_PRESENCE`), a mob within `NEAR` of one of `others` is not
+whose feet stand inside the rectangle (`HUNTING_AREA`). A mob is reached from a
+spot as `MobsHitting` reaches it on screen (`placed_reach`): its box overlaps
+the reach by at least one client px on each axis, converted to virtual px with
+that frame's scale (`Camera.scale`); nothing is cut at the chat. Once someone
+has settled (`AREA_PRESENCE`), a mob within `NEAR` of one of `others` is not
 counted.
 
 **What it picks**, each time it has to: for each stretch of `AREA_STRETCHES`,
@@ -64,7 +67,8 @@ from maple.decision_makers.providers.hunting_area import (
 from maple.decision_makers.providers.map import POSITION_FUSION, WORLD_MAP
 from maple.decision_makers.providers.minimap import POSITION
 from maple.decision_makers.providers.mobs import MOBS
-from maple.model.characters.reach import Reach, Sides
+from maple.model.characters.placed_reach import Placement, counted
+from maple.model.characters.reach import Reach
 from maple.model.world.hunting_area import (
     HuntingArea,
     Stretch,
@@ -103,10 +107,13 @@ class Look:
         rectangle, and not within `NEAR` of a settled player.
     :ivar sighted: Whether the Camera was read, so that the mobs are placed;
         when it was not, no mob is counted.
+    :ivar scale: The frame's client px per virtual px (`Camera.scale`): what
+        one client px of overlap is, in virtual px. 1:1 when nothing is placed.
     """
 
     mobs: tuple[MobBox, ...] = ()
     sighted: bool = False
+    scale: tuple[float, float] = (1.0, 1.0)
 
 
 #: A look on a frame whose Camera was not read.
@@ -118,42 +125,35 @@ def feet(mob: MobBox) -> Point:
     return ((mob[0] + mob[2]) / 2, mob[3])
 
 
-def _overlaps(mob: MobBox, box: tuple[float, float, float, float]) -> bool:
-    """Whether the mob's box and `box` share some area."""
-    return min(mob[2], box[2]) > max(mob[0], box[0]) and (
-        min(mob[3], box[3]) > max(mob[1], box[1])
-    )
-
-
-def reaches(spot: Point, mobs: Sequence[MobBox], reach: Reach) -> int:
+def reaches(
+    spot: Point, mobs: Sequence[MobBox], reach: Reach, *, scale: tuple[float, float]
+) -> int:
     """
     How many of `mobs` a cast from `spot`, the character's feet, reaches: their
-    boxes overlapping `reach` placed there. A one-sided reach is counted facing
-    both ways, and the larger count kept.
+    boxes in `reach` placed there (`placed_reach`). A one-sided reach is counted
+    facing both ways, and the larger count kept.
+
+    :param scale: Client px per virtual px of the frame the mobs were found on.
     """
-    x, y = spot
-    boxes = [reach]
-    if reach.sides is Sides.ONE:
-        boxes.append(reach.facing_right())
-    return max(
-        sum(
-            1
-            for mob in mobs
-            if _overlaps(mob, (x + box.lt_x, y + box.lt_y, x + box.rb_x, y + box.rb_y))
-        )
-        for box in boxes
-    )
+    where = Placement.in_virtual_px(spot, scale)
+    return max(len(found) for found in counted(reach, mobs, where).values())
 
 
 def fires(
-    spot: Point, mobs: Sequence[MobBox], attacks: Sequence[Attack]
+    spot: Point,
+    mobs: Sequence[MobBox],
+    attacks: Sequence[Attack],
+    *,
+    scale: tuple[float, float],
 ) -> tuple[int, int] | None:
     """
     The earliest attack that fires from `spot`: its place in `attacks` and how
     many mobs it reaches; None when none does.
+
+    :param scale: As `reaches` takes it.
     """
     for index, attack in enumerate(attacks):
-        count = reaches(spot, mobs, attack.reach)
+        count = reaches(spot, mobs, attack.reach, scale=scale)
         if count >= attack.min_mobs:
             return index, count
     return None
@@ -165,6 +165,8 @@ def best_spot(
     attacks: Sequence[Attack],
     here: Point | None,
     others: Sequence[Point] = (),
+    *,
+    scale: tuple[float, float],
 ) -> tuple[Point, int] | None:
     """
     Of the spots on each stretch nearest each mob, outside `NEAR` of `others`,
@@ -172,6 +174,7 @@ def best_spot(
     that attack reaches the most mobs, then the nearest to `here`. None when no
     attack fires on any.
 
+    :param scale: As `reaches` takes it.
     :returns: The spot and how many mobs the attack that fires there reaches.
     """
     best: tuple[Point, int] | None = None
@@ -184,7 +187,7 @@ def best_spot(
             spot = (x, y)
             if near(spot, others):
                 continue
-            found = fires(spot, mobs, attacks)
+            found = fires(spot, mobs, attacks, scale=scale)
             if found is None:
                 continue
             index, count = found
@@ -281,7 +284,9 @@ class HuntingAreaSource:
         elif now - self._looked_at < self.LOOK_EVERY:
             return destination
         look = self._look(now, others)
-        if look.sighted and fires(destination, look.mobs, self._attacks()):
+        if look.sighted and fires(
+            destination, look.mobs, self._attacks(), scale=look.scale
+        ):
             return destination
         return self._pick(here, now, stretches, others, look)
 
@@ -375,7 +380,7 @@ class HuntingAreaSource:
             for box in mob_boxes_in_virtual_px(found, frame.client_size, camera)
             if area.contains(feet(box)) and not near(feet(box), others)
         )
-        return Look(mobs, sighted=True)
+        return Look(mobs, sighted=True, scale=camera.scale(frame.client_size))
 
     def _mark_seen(self, camera: Camera | None, now: float) -> None:
         """Every cell whose middle is inside the Camera's play area is seen now."""
@@ -403,11 +408,17 @@ class HuntingAreaSource:
             look = self._look(now, others)
         attacks = self._attacks()
         if look.sighted:
-            best = best_spot(stretches, look.mobs, attacks, here, others)
+            best = best_spot(
+                stretches, look.mobs, attacks, here, others, scale=look.scale
+            )
             if best is not None:
                 return self._head_for(best[0], "mobs", best[1])
         middle = self._least_seen(here, stretches, others)
-        found = fires(middle, look.mobs, attacks) if look.sighted else None
+        found = (
+            fires(middle, look.mobs, attacks, scale=look.scale)
+            if look.sighted
+            else None
+        )
         return self._head_for(middle, "look_around", 0 if found is None else found[1])
 
     def _least_seen(
