@@ -127,9 +127,9 @@ def test_a_weapon_based_attack_carries_its_swings_and_a_skill_based_one_none(
         ],
     )
 
-    assert power_strike.swings == armed(POWER_STRIKE, SWORD, CATALOGUE).swings
-    assert power_strike.swings
-    assert savage_blow.swings is None
+    assert power_strike.armed.swings == armed(POWER_STRIKE, SWORD, CATALOGUE).swings
+    assert power_strike.armed.swings
+    assert savage_blow.armed.swings is None
 
 
 def test_skill_based_attacks_carry_their_box_and_sides(

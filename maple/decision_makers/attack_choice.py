@@ -94,14 +94,14 @@ def partial(
     None when no attack has any.
     """
     for attack in attacks:
-        if attack.swings is None:
+        if attack.armed.swings is None:
             continue
         found: list[ClientBox] = []
         for side in sides(attack.reach):
             reached = set(in_reach(attack.reach, side, mobs, where))
             swung = {
                 mob
-                for swing in attack.swings
+                for swing in attack.armed.swings
                 for mob in in_reach(swing, side, mobs, where)
             }
             found += [m for m in mobs if m in swung - reached and m not in found]

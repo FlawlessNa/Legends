@@ -11,14 +11,14 @@ centre, `most` by how many mobs a side counts.
 from maple.decision_makers.attack_choice import choose
 from maple.decision_makers.providers import Attack, Facing
 from maple.model.characters.placed_reach import Placement, counted
-from maple.model.characters.reach import Reach
+from maple.model.characters.reach import Armed, Reach
 
 #: Feet at (100, 300), 1:1, no chat in the way.
 WHERE = Placement(feet=(100.0, 300.0), scale=(1.0, 1.0), bottom=600.0)
 #: One-sided: 10 to 90 px in front, 60 px up from the feet.
-SWING = Attack(object(), Reach(-90, -60, -10, 0), 1)  # pyright: ignore[reportArgumentType] - the skill isn't read
+SWING = Attack(Armed(object(), Reach(-90, -60, -10, 0)), 1)  # pyright: ignore[reportArgumentType] - the skill isn't read
 #: Two-sided: 90 px each way.
-AROUND = Attack(object(), Reach(-90, -60, 90, 0), 1)  # pyright: ignore[reportArgumentType]
+AROUND = Attack(Armed(object(), Reach(-90, -60, 90, 0)), 1)  # pyright: ignore[reportArgumentType]
 
 
 def mob(center_x: int) -> tuple[int, int, int, int]:
@@ -40,7 +40,7 @@ def test_a_two_sided_reach_is_counted_once() -> None:
 
 def test_only_a_side_that_fires_is_faced() -> None:
     """The closest mob is right, but only the left counts 2."""
-    attack = Attack(SWING.skill, SWING.reach, 2)
+    attack = Attack(SWING.armed, 2)
 
     choice = choose([attack], [mob(40), mob(30), mob(110)], WHERE, Facing.CLOSEST)
 

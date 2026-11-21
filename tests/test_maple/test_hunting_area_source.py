@@ -581,8 +581,8 @@ def box(x: float, y: float = 0.0, half: float = 30.0, height: float = 40.0) -> A
 
 #: Power Strike's and Slash Blast's reach with a one-handed sword: 22 to 73 px in
 #: front of the feet, a 14 px band at chest height, one-sided.
-POWER_STRIKE_1 = replace(attack(1), reach=armed(POWER_STRIKE, SWORD, CATALOGUE).reach)
-SLASH_BLAST_3 = replace(attack(3), reach=armed(SLASH_BLAST, SWORD, CATALOGUE).reach)
+POWER_STRIKE_1 = replace(attack(1), armed=armed(POWER_STRIKE, SWORD, CATALOGUE))
+SLASH_BLAST_3 = replace(attack(3), armed=armed(SLASH_BLAST, SWORD, CATALOGUE))
 SWORDSMAN = (SLASH_BLAST_3, POWER_STRIKE_1)
 
 

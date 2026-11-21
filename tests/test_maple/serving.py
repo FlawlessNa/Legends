@@ -51,7 +51,7 @@ from maple.decision_makers.providers import (
     SkillsProvider,
 )
 from maple.model.characters.maple_skills import MapleSkill
-from maple.model.characters.reach import Reach
+from maple.model.characters.reach import Armed, Reach
 from maple.model.navigation import Point
 from maple.model.world import HuntingArea, Stretch, WorldMap
 from maple.screen.position import VirtualPosition
@@ -157,7 +157,7 @@ WIDE_REACH = Reach(-100, -100, 100, 50)
 def attack(min_mobs: int, reach: Reach = WIDE_REACH, name: str = "Fixture") -> Attack:
     """An attack of the profile's `attacks`, with the box `reach` and no client."""
     skill = MapleSkill(name, id=0, level=1, max_level=1)
-    return Attack(skill, reach, min_mobs)
+    return Attack(Armed(skill, reach), min_mobs)
 
 
 def destination(

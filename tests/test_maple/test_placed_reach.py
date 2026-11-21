@@ -15,13 +15,13 @@ from maple.decision_makers.attack_choice import ClientBox, choose
 from maple.decision_makers.providers import Attack, Facing
 from maple.decision_makers.providers.sources.hunting_area import reaches
 from maple.model.characters.placed_reach import Placement
-from maple.model.characters.reach import Reach
+from maple.model.characters.reach import Armed, Reach
 from maple.screen.position import Camera
 
 #: One-sided: 10 to 90 virtual px in front, 60 up from the feet.
 SWING = Reach(-90, -60, -10, 0)
 #: The one attack `choose` goes down; its skill isn't read.
-ATTACK = Attack(object(), SWING, 1)  # pyright: ignore[reportArgumentType]
+ATTACK = Attack(Armed(object(), SWING), 1)  # pyright: ignore[reportArgumentType]
 
 #: 2 client px per virtual px, feet at (1000, 500), the chat's top at 450:
 #: facing left, the reach is x 820 to 980 and y 380 to 450 (cut at the chat).
